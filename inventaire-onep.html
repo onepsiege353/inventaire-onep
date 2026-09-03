@@ -8778,6 +8778,29 @@ document.addEventListener('DOMContentLoaded',function(){
     try { var v = JSON.parse(localStorage.getItem(keyForCode(code))); return Array.isArray(v) ? v : []; }
     catch (e) { return []; }
   }
+
+  
+  var EFF_KEY = 'onep_effaces_v1';
+  function effLoad() { try { var o = JSON.parse(localStorage.getItem(EFF_KEY)); return (o && typeof o === 'object') ? o : {}; } catch (e) { return {}; } }
+  function effSave(o) { try { localStorage.setItem(EFF_KEY, JSON.stringify(o)); } catch (e) {} }
+  function effHas(code, id) { var o = effLoad(), m = o[code]; return !!(m && m[id]); }
+  function effAdd(code, id) { var o = effLoad(); if (!o[code]) o[code] = {}; o[code][id] = Date.now(); effSave(o); }
+  function purgeArr(code, arr) {
+    var out = [], i, id;
+    for (i = 0; i < arr.length; i++) { id = idFor(code, arr[i]); if (id && effHas(code, id)) continue; out.push(arr[i]); }
+    return out;
+  }
+  function localPurge(code) {
+    var arr = readArr(code); if (!arr.length) return arr;
+    var kept = [], ch = false, i, id;
+    for (i = 0; i < arr.length; i++) { id = idFor(code, arr[i]); if (id && effHas(code, id)) ch = true; else kept.push(arr[i]); }
+    if (ch) { try { localStorage.setItem(keyForCode(code), JSON.stringify(kept)); } catch (e) {} }
+    return kept;
+  }
+  function reconcilePurge() {
+    var codes = ['imm', 'proj', 'mov', 'loc'], i;
+    for (i = 0; i < codes.length; i++) { try { localPurge(codes[i]); } catch (e) {} }
+  }
   function mapOf(arr) {
     var m = {}, i, id;
     for (i = 0; i < arr.length; i++) { id = idFor('', arr[i]); if (!id) break; }
@@ -9127,6 +9150,8 @@ document.addEventListener('DOMContentLoaded',function(){
           return;
         }
         var op = batch[idx]; idx++;
+        if (op.code !== 'inv' && effHas(op.code, op.id)) { step(); return; } 
+
         var path = op.code === 'inv' ? '/agents/' + u + '/inv' : '/agents/' + u + '/' + op.code + '/' + op.id;
         function ok() { step(); }
         function err(e) { queueReplace(op); logLine('Échec envoi (remis en file) : ' + (e && e.message ? e.message : e)); step(); }
@@ -9172,6 +9197,7 @@ document.addEventListener('DOMContentLoaded',function(){
 
   function maybeSync(code, valArr) {
     if (!enabled()) return;
+    try { valArr = purgeArr(code, valArr); } catch (e) {}
     var me = session();
     if (!me) { saveSnap(code, valArr); return; } 
 
@@ -9291,7 +9317,8 @@ document.addEventListener('DOMContentLoaded',function(){
           return;
         }
         var code = codes[ci]; ci++;
-        var arr = readArr(code), ops = [], i, id;
+        var arr = localPurge(code), ops = [], i, id;   
+
         for (i = 0; i < arr.length; i++) { id = idFor(code, arr[i]); if (id) ops.push({ kind: 'set', id: id, rec: arr[i] }); }
         sendOps(code, ops, nextCode);
       }
@@ -9374,11 +9401,13 @@ document.addEventListener('DOMContentLoaded',function(){
           for (code in ad.suppr) {
             if (!ad.suppr[code] || typeof ad.suppr[code] !== 'object') continue;
             for (id in ad.suppr[code]) {
+              effAdd(code, id);   
+
               arr = readArr(code);
               if (arr.length) {
                 kept = []; found = false;
                 for (i = 0; i < arr.length; i++) { rec = arr[i]; if (idFor(code, rec) === id) { found = true; } else kept.push(rec); }
-                if (found) { try { localStorage.setItem(keyForCode(code), JSON.stringify(kept)); logLine('Consigne admin : ' + code + ' ' + id + ' supprimé(e) localement.'); } catch (e) {} }
+                if (found) { try { localStorage.setItem(keyForCode(code), JSON.stringify(kept)); logLine('Consigne admin : ' + code + ' ' + id + ' supprimé(e) localement (définitif).'); } catch (e) {} }
               }
               ackConsigne('/agents/' + u + '/_admin/suppr/' + code + '/' + id);
             }
@@ -9554,6 +9583,8 @@ document.addEventListener('DOMContentLoaded',function(){
     ensureSessionHook();
     ensureBaseline();   
 
+    reconcilePurge();   
+
     injectDot();
     if (state.pending && state.pending.length && session()) { setStatus('En attente de connexion (' + state.pending.length + ')', '#E8890C'); }
     if (!enabled()) { setStatus('Synchronisation désactivée', '#A0AAB4'); }
@@ -9563,6 +9594,8 @@ document.addEventListener('DOMContentLoaded',function(){
 
     setInterval(function () {
       var on = enabled() && session();
+      reconcilePurge();   
+
       if (!on) return;
       applyConsignes();   
 

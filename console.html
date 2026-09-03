@@ -261,6 +261,30 @@ var INV_COLS = [
 ];
 
 var dataAgents = {};   // uid -> { about, imm, proj, mov, loc, inv }
+/* Registre des suppressions admin : tant que le poste de l'agent n'a pas
+   acquitté la consigne, toute réapparition de l'enregistrement en ligne est
+   re-supprimée automatiquement (convergence même avec un poste non à jour). */
+var SUPPR_REG_KEY = 'onep_console_suppr_v1';
+function supprReg(){ try { var o = JSON.parse(localStorage.getItem(SUPPR_REG_KEY)); return (o && typeof o === 'object') ? o : {}; } catch(e){ return {}; } }
+function supprRegAdd(uid, code, id){
+  try { var o = supprReg(); if(!o[uid]) o[uid] = {}; if(!o[uid][code]) o[uid][code] = {}; o[uid][code][id] = Date.now(); localStorage.setItem(SUPPR_REG_KEY, JSON.stringify(o)); } catch(e){}
+}
+function forceRegistre(){
+  try {
+    var o = supprReg(), a = auth.currentUser ? auth.currentUser.email : '';
+    for (var uid in o) for (var code in o[uid]) for (var id in o[uid][code]) {
+      (function(u, c, i){
+        try {
+          var node = dataAgents[u] && dataAgents[u][c] && dataAgents[u][c][i];
+          if (node){
+            db.ref('agents/' + u + '/' + c + '/' + i).remove().catch(function(){});
+            db.ref('agents/' + u + '/_admin/suppr/' + c + '/' + i).set({ t: Date.now(), a: a }).catch(function(){});
+          }
+        } catch (e) {}
+      })(uid, code, id);
+    }
+  } catch (e) {}
+}
 var codeActif = 'imm';
 var statutInv = 'tous';
 var invAgg = null;     // résultat de l'agrégation inventaire
@@ -324,6 +348,8 @@ function brancherEcoute(){
   db.ref('agents').on('value', function(snap){
     dataAgents = snap.val() || {};
     rendu();
+    clearTimeout(brancherEcoute._fr);
+    brancherEcoute._fr = setTimeout(function(){ forceRegistre(); }, 600); // ré-application auto des suppressions
   }, function(err){});
 }
 
@@ -691,6 +717,7 @@ function sauverEdition(){
 }
 function supprimer(uid, code, id){
   if (!confirm('Supprimer définitivement cet enregistrement de la base en ligne ?\nLe poste de l\'agent recevra l\'ordre de supprimer aussi sa copie locale dès sa prochaine synchronisation — le bien ne reviendra plus.')) return;
+  supprRegAdd(uid, code, id);   // mémorise la suppression (re-suppression auto si réapparition)
   db.ref('agents/' + uid + '/' + code + '/' + id).remove().then(function(){
     // Consigne inverse : le poste de l'agent doit supprimer sa copie locale (pas de réapparition)
     db.ref('agents/' + uid + '/_admin/suppr/' + code + '/' + id).set({ t: Date.now(), a: auth.currentUser ? auth.currentUser.email : '' }).catch(function(){});
@@ -705,6 +732,7 @@ function supprimerRecord(){
   if (!editeur) return;
   if (!confirm('Supprimer définitivement ?\nLe poste de l\'agent recevra l\'ordre de supprimer aussi sa copie locale.')) return;
   var ref = editeur.whole ? db.ref('agents/' + editeur.uid + '/inv') : db.ref('agents/' + editeur.uid + '/' + editeur.code + '/' + editeur.id);
+  if (!editeur.whole) supprRegAdd(editeur.uid, editeur.code, editeur.id);
   ref.remove().then(function(){
     if (!editeur.whole){
       db.ref('agents/' + editeur.uid + '/_admin/suppr/' + editeur.code + '/' + editeur.id)

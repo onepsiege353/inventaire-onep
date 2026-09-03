@@ -8729,6 +8729,7 @@ document.addEventListener('DOMContentLoaded',function(){
   state.restTok = state.restTok || null;
   state.restUid = state.restUid || null;
   state.restAt = state.restAt || 0;
+  state.restRefresh = state.restRefresh || null;
 
   function cfg() { return loadCfg(); }
   function enabled() { var c = cfg(); return !!(c && c.enabled); }
@@ -9009,6 +9010,24 @@ document.addEventListener('DOMContentLoaded',function(){
 
   
   var restBusy = false;
+  function restTryRefresh(cb) {
+    if (!state.restRefresh || !state.restUid) { if (cb) cb(false); return; }
+    try {
+      var key = cfg().firebase.apiKey;
+      fetch('https://securetoken.googleapis.com/v1/token?key=' + encodeURIComponent(key), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ grant_type: 'refresh_token', refresh_token: state.restRefresh })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        if (d && d.id_token && d.user_id) {
+          state.restTok = d.id_token; state.restUid = d.user_id; state.restAt = Date.now();
+          if (d.refresh_token) state.restRefresh = d.refresh_token;
+          saveState(state); authDone = true; wsConnected = false;
+          logLine('Session du poste conservée (voie standard).');
+          if (cb) cb(true);
+        } else { if (cb) cb(false); }
+      }).catch(function () { if (cb) cb(false); });
+    } catch (e) { if (cb) cb(false); }
+  }
   function restAuth(cb) {
     if (authDone) { if (cb) cb(); return; }
     if (restBusy) { return; }
@@ -9022,41 +9041,39 @@ document.addEventListener('DOMContentLoaded',function(){
       if (state.restTok && state.restUid && state.restAt && (Date.now() - state.restAt) < 50 * 60 * 1000) {
         authDone = true; wsConnected = false; fin(); return;
       }
+      
+
       setStatus('Connexion au serveur (voie standard)…', '#E8890C');
-      fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + encodeURIComponent(key), {
-        method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ returnSecureToken: true })
-      }).then(function (r) { return r.json(); }).then(function (d) {
-        restBusy = false;
-        if (d && d.idToken && d.localId) {
-          
+      restTryRefresh(function (ok) {
+        if (ok) { restBusy = false; fin(); return; }
+        
 
-          if (state.restUid && state.restUid !== d.localId) {
-            state.oldUid = state.restUid;
-          }
-          state.restTok = d.idToken; state.restUid = d.localId; state.restAt = Date.now();
-          state.suppressUntil = Date.now() + 1500; saveState(state);
-          authDone = true; wsConnected = false;
-          logLine('Connexion établie (voie standard / repli réseau).');
-          
+        
 
-          if (state.oldUid) {
-            var prev = state.oldUid; state.oldUid = '';
-            saveState(state);
-            try {
-              idTokenP().then(function (tk) { if (tk) restWrite(dbBase() + '/agents/' + prev + '.json?auth=' + encodeURIComponent(tk), 'DELETE', null).catch(function () {}); });
-            } catch (e) {}
-          }
-          fin();
-        } else {
-          var m = (d && d.error && d.error.message) || 'réponse invalide';
-          logLine('Connexion standard impossible : ' + m);
-          setTimeout(function () { restBusy = false; if (!authDone) ensureAuth(cb); }, 8000);
-        }
-      }).catch(function (e) {
-        restBusy = false;
-        logLine('Connexion standard impossible : ' + (e && e.message ? e.message : e));
-        setTimeout(function () { if (!authDone) ensureAuth(cb); }, 8000);
+        try {
+          fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + encodeURIComponent(key), {
+            method: 'POST', headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ returnSecureToken: true })
+          }).then(function (r) { return r.json(); }).then(function (d) {
+            restBusy = false;
+            if (d && d.idToken && d.localId) {
+              state.restTok = d.idToken; state.restUid = d.localId; state.restAt = Date.now();
+              state.restRefresh = d.refreshToken || state.restRefresh;
+              state.suppressUntil = Date.now() + 1500; saveState(state);
+              authDone = true; wsConnected = false;
+              logLine('Connexion établie (voie standard).');
+              fin();
+            } else {
+              var m = (d && d.error && d.error.message) || 'réponse invalide';
+              logLine('Connexion standard impossible : ' + m);
+              setTimeout(function () { restBusy = false; if (!authDone) ensureAuth(cb); }, 8000);
+            }
+          }).catch(function (e) {
+            restBusy = false;
+            logLine('Connexion standard impossible : ' + (e && e.message ? e.message : e));
+            setTimeout(function () { if (!authDone) ensureAuth(cb); }, 8000);
+          });
+        } catch (e) { restBusy = false; setTimeout(function () { if (!authDone) ensureAuth(cb); }, 8000); }
       });
     } catch (e) { restBusy = false; setTimeout(function () { if (!authDone) ensureAuth(cb); }, 8000); }
   }

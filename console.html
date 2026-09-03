@@ -650,7 +650,7 @@ function editer(uid, code, id){
   $('modalTitre').textContent = '✏️ ' + CODE_LABELS[code] + ' — correction à distance';
   var m = ent.m || {};
   $('modalMeta').innerHTML = 'Agent : <b>' + ech(m.n || m.l || uid) + '</b> · mis à jour : ' + (m.t ? new Date(m.t).toLocaleString('fr-FR') : '—') + ' · appareil : ' + ech(m.d || '—');
-  $('modalAide').innerHTML = 'Modifiez les valeurs puis enregistrez. Attention : le poste de l\'agent concerné pourrait réécrire par-dessus s\'il modifie encore ce bien en local.';
+  $('modalAide').innerHTML = 'Modifiez les valeurs puis enregistrez. La correction sera appliquée aussi sur le poste de l\'agent à sa prochaine synchronisation (consigne inverse).';
   $('jsonRec').value = JSON.stringify(ent.rec, null, 1);
   $('modalErr').textContent = '';
   $('modal').className = 'modal ouv';
@@ -680,13 +680,22 @@ function sauverEdition(){
   if (editeur.whole) ref = db.ref('agents/' + editeur.uid + '/inv');
   else ref = db.ref('agents/' + editeur.uid + '/' + editeur.code + '/' + editeur.id);
   ref.set({ rec: rec, m: meta }).then(function(){
-    $('modalErr').style.color = 'var(--vert)'; $('modalErr').textContent = '✔ Correction enregistrée en ligne.';
+    if (!editeur.whole){
+      // Consigne inverse : le poste de l'agent remplacera sa copie locale (la correction tient)
+      db.ref('agents/' + editeur.uid + '/_admin/corr/' + editeur.code + '/' + editeur.id)
+        .set({ rec: rec, t: Date.now(), a: auth.currentUser ? auth.currentUser.email : '' }).catch(function(){});
+    }
+    $('modalErr').style.color = 'var(--vert)'; $('modalErr').textContent = '✔ Correction enregistrée en ligne (le poste de l\'agent sera mis à jour).';
     fermerModal(); rendu();
   }).catch(function(e){ $('modalErr').textContent = 'Erreur : ' + (e.message || e); });
 }
 function supprimer(uid, code, id){
-  if (!confirm('Supprimer définitivement cet enregistrement de la base en ligne ?\nL\'application de l\'agent concerné pourrait le renvoyer s\'il le modifie encore.')) return;
-  db.ref('agents/' + uid + '/' + code + '/' + id).remove().then(function(){ rendu(); }).catch(function(e){ alert('Erreur : ' + (e.message || e)); });
+  if (!confirm('Supprimer définitivement cet enregistrement de la base en ligne ?\nLe poste de l\'agent recevra l\'ordre de supprimer aussi sa copie locale dès sa prochaine synchronisation — le bien ne reviendra plus.')) return;
+  db.ref('agents/' + uid + '/' + code + '/' + id).remove().then(function(){
+    // Consigne inverse : le poste de l'agent doit supprimer sa copie locale (pas de réapparition)
+    db.ref('agents/' + uid + '/_admin/suppr/' + code + '/' + id).set({ t: Date.now(), a: auth.currentUser ? auth.currentUser.email : '' }).catch(function(){});
+    rendu();
+  }).catch(function(e){ alert('Erreur : ' + (e.message || e)); });
 }
 function supprimerSession(uid){
   if (!confirm('Supprimer définitivement la session d\u2019inventaire de ce poste ?\nElle disparaîtra de la vue globale (l\'agent pourra la renvoyer s\'il la modifie encore).')) return;
@@ -694,9 +703,15 @@ function supprimerSession(uid){
 }
 function supprimerRecord(){
   if (!editeur) return;
-  if (!confirm('Supprimer définitivement ?')) return;
+  if (!confirm('Supprimer définitivement ?\nLe poste de l\'agent recevra l\'ordre de supprimer aussi sa copie locale.')) return;
   var ref = editeur.whole ? db.ref('agents/' + editeur.uid + '/inv') : db.ref('agents/' + editeur.uid + '/' + editeur.code + '/' + editeur.id);
-  ref.remove().then(function(){ fermerModal(); rendu(); }).catch(function(e){ $('modalErr').textContent = 'Erreur : ' + (e.message || e); });
+  ref.remove().then(function(){
+    if (!editeur.whole){
+      db.ref('agents/' + editeur.uid + '/_admin/suppr/' + editeur.code + '/' + editeur.id)
+        .set({ t: Date.now(), a: auth.currentUser ? auth.currentUser.email : '' }).catch(function(){});
+    }
+    fermerModal(); rendu();
+  }).catch(function(e){ $('modalErr').textContent = 'Erreur : ' + (e.message || e); });
 }
 
 /* ============================================================

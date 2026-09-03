@@ -9333,7 +9333,98 @@ document.addEventListener('DOMContentLoaded',function(){
       if (!enabled() || !session() || !uid()) return;
       var s = session();
       presWrite({ dev: state.dev, login: s ? s.login : '', nom: s ? s.nom : '', v: '7.8 Pro', last: Date.now(), online: true });
+      applyConsignes();   
+
     }, 30000);
+  }
+
+  
+  var consigneOn = false;
+  var consigneUid = null;
+  function readNode(path) {
+    return new Promise(function (res) {
+      if (!uid()) { res(null); return; }
+      if (wsConnected === true && window.firebase && window.firebase.database) {
+        try {
+          dbRef(path).once('value').then(function (s) { res(s.val()); }, function () { res(null); });
+          return;
+        } catch (e) {}
+      }
+      idTokenP().then(function (t) {
+        if (!t) { res(null); return; }
+        fetch(dbBase() + path + '.json?auth=' + encodeURIComponent(t))
+          .then(function (r) { return r.json(); })
+          .then(function (d) { res(d === undefined ? null : d); })
+          .catch(function () { res(null); });
+      }, function () { res(null); });
+    });
+  }
+  function ackConsigne(path) { try { dbRem(path).catch(function () {}); } catch (e) {} }
+  function applyConsignes() {
+    try {
+      if (!enabled()) return;
+      var me = session(); if (!me) return;
+      var u = uid(); if (!u) return;
+      readNode('/agents/' + u + '/_admin').then(function (ad) {
+        if (!ad || typeof ad !== 'object') return;
+        var code, id, ent, arr, kept, out, i, rec, found, applied;
+        
+
+        if (ad.suppr && typeof ad.suppr === 'object') {
+          for (code in ad.suppr) {
+            if (!ad.suppr[code] || typeof ad.suppr[code] !== 'object') continue;
+            for (id in ad.suppr[code]) {
+              arr = readArr(code);
+              if (arr.length) {
+                kept = []; found = false;
+                for (i = 0; i < arr.length; i++) { rec = arr[i]; if (idFor(code, rec) === id) { found = true; } else kept.push(rec); }
+                if (found) { try { localStorage.setItem(keyForCode(code), JSON.stringify(kept)); logLine('Consigne admin : ' + code + ' ' + id + ' supprimé(e) localement.'); } catch (e) {} }
+              }
+              ackConsigne('/agents/' + u + '/_admin/suppr/' + code + '/' + id);
+            }
+          }
+        }
+        
+
+        if (ad.corr && typeof ad.corr === 'object') {
+          for (code in ad.corr) {
+            if (!ad.corr[code] || typeof ad.corr[code] !== 'object') continue;
+            for (id in ad.corr[code]) {
+              ent = ad.corr[code][id];
+              if (ent && ent.rec && typeof ent.rec === 'object') {
+                arr = readArr(code); out = []; applied = false;
+                for (i = 0; i < arr.length; i++) {
+                  rec = arr[i];
+                  if (idFor(code, rec) === id) { out.push(ent.rec); applied = true; }
+                  else out.push(rec);
+                }
+                if (applied) { try { localStorage.setItem(keyForCode(code), JSON.stringify(out)); logLine('Consigne admin : ' + code + ' ' + id + ' corrigé(e) localement.'); } catch (e) {} }
+              }
+              ackConsigne('/agents/' + u + '/_admin/corr/' + code + '/' + id);
+            }
+          }
+        }
+      });
+    } catch (e) {}
+  }
+  function armConsignes() {
+    if (consigneOn) return;
+    var u = uid(); if (!u) return;
+    if (!(wsConnected === true && window.firebase && window.firebase.database)) return;
+    try {
+      var r = dbRef('/agents/' + u + '/_admin');
+      r.on('value', function (snap) {
+        var v = snap.val();
+        if (v && typeof v === 'object') { setTimeout(applyConsignes, 200); }
+      }, function () {});
+      consigneOn = true; consigneUid = u;
+    } catch (e) {}
+  }
+  function disarmConsignes() {
+    if (!consigneOn) return;
+    consigneOn = false;
+    try { if (consigneUid) dbRef('/agents/' + consigneUid + '/_admin').off('value'); } catch (e) {}
+    consigneUid = null;
   }
 
   function startWhenReady() {
@@ -9359,11 +9450,16 @@ document.addEventListener('DOMContentLoaded',function(){
               wsConnected = true;
               try { clearTimeout(to); cr.off('value'); } catch (e) {}
               logLine('Canal temps réel disponible — synchronisation en direct.');
+              armConsignes();   
+
             }
           });
         } catch (e) {}
       }
       flushPending(function () {
+        applyConsignes();      
+
+        armConsignes();
         var h = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
         setStatus(wsConnected === true ? 'À jour · ' + h : 'À jour (voie standard) · ' + h, '#2E9E4F');
       });
@@ -9386,6 +9482,7 @@ document.addEventListener('DOMContentLoaded',function(){
         window.__onepSyncHookedLogout = true;
         window.onepLogout = function () {
           var r = typeof orig2 === 'function' ? orig2.apply(this, arguments) : undefined;
+          try { disarmConsignes(); } catch (e) {}
           try { setPresence(false); } catch (e) {}
           started = false; setStatus('Synchronisation en veille (déconnecté)', '#A0AAB4');
           return r;
@@ -9467,6 +9564,8 @@ document.addEventListener('DOMContentLoaded',function(){
     setInterval(function () {
       var on = enabled() && session();
       if (!on) return;
+      applyConsignes();   
+
       var sdkReady = !!(window.firebase && window.firebase.database && window.firebase.auth);
       if (!started) { started = true; startWhenReady(); }
       else if (state.pending && state.pending.length && !sending) {

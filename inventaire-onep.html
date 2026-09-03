@@ -8726,6 +8726,9 @@ document.addEventListener('DOMContentLoaded',function(){
   state.sdk = state.sdk || 0;
   state.resetHandled = !!state.resetHandled;
   state.suppressUntil = state.suppressUntil || 0;
+  state.restTok = state.restTok || null;
+  state.restUid = state.restUid || null;
+  state.restAt = state.restAt || 0;
 
   function cfg() { return loadCfg(); }
   function enabled() { var c = cfg(); return !!(c && c.enabled); }
@@ -8940,24 +8943,39 @@ document.addEventListener('DOMContentLoaded',function(){
 
   var authDone = false;
   function ensureAuth(cb) {
-    var c = cfg(); if (!c) return;
-    if (authDone) { cb(); return; }
+    if (authDone) { if (cb) cb(); return; }
+    var called = false;
+    function fin() { if (called) return; called = true; if (cb) cb(); }
+    
+
     loadSDK(function () {
+      if (authDone || called) { return; }
       try {
-        var dbURL = c.firebase.databaseURL;
-        var app = window.firebase.apps && window.firebase.apps.length ? window.firebase.app() : window.firebase.initializeApp(c.firebase);
-        window.firebase.auth(app).signInAnonymously().then(function () { authDone = true; state.suppressUntil = Date.now() + 2000; saveState(state); cb(); })
-          .catch(function (e) {
-            setStatus('Règles non activées ? (' + (e && e.code ? e.code : 'connexion refusée') + ')', '#C0392B');
-            logLine('Connexion refusée : ' + (e && e.message ? e.message : e));
-            setTimeout(function () { ensureAuth(cb); }, 12000);
-          });
-      } catch (e) { setStatus('Erreur Firebase : ' + e.message, '#C0392B'); }
+        var app = (window.firebase.apps && window.firebase.apps.length) ? window.firebase.app() : window.firebase.initializeApp(cfg().firebase);
+        window.firebase.auth(app).signInAnonymously().then(function () {
+          if (state.restUid) { 
+
+            try { window.firebase.auth().signOut(); } catch (e) {}
+            return;
+          }
+          if (!authDone) { authDone = true; state.suppressUntil = Date.now() + 1500; saveState(state); }
+          fin();
+        }).catch(function () {
+          if (!authDone && !called) restAuth(fin);
+        });
+      } catch (e) { if (!authDone && !called) restAuth(fin); }
     });
+    
+
+    setTimeout(function () {
+      if (!authDone && !called && !restBusy) restAuth(fin);
+    }, 5000);
   }
 
   function uid() {
-    try { var a = window.firebase.auth().currentUser; return a ? a.uid : null; } catch (e) { return null; }
+    try { var a = window.firebase.auth().currentUser; if (a && a.uid) return a.uid; } catch (e) {}
+    if (state.restUid) return state.restUid;
+    return null;
   }
   function dbRef(path) {
     var app = window.firebase.app();
@@ -8970,8 +8988,8 @@ document.addEventListener('DOMContentLoaded',function(){
   function dbBase() { var c = cfg(); return (c && c.firebase && c.firebase.databaseURL) ? c.firebase.databaseURL : ''; }
   function idTokenP() {
     return new Promise(function (res) {
-      try { var c = window.firebase.auth().currentUser; if (!c) return res(null); c.getIdToken(false).then(function (t) { res(t); }, function () { res(null); }); }
-      catch (e) { res(null); }
+      try { var c = window.firebase.auth().currentUser; if (c) { c.getIdToken(false).then(function (t) { res(t || state.restTok || null); }, function () { res(state.restTok || null); }); return; } } catch (e) {}
+      res(state.restTok || null);
     });
   }
   function restWrite(url, method, body) {
@@ -8988,6 +9006,60 @@ document.addEventListener('DOMContentLoaded',function(){
 
   function dbSet(path, val) { if (wsConnected === true) { try { return dbRef(path).set(val); } catch (e) {} } return dbPut(path, val); }
   function dbRem(path) { if (wsConnected === true) { try { return dbRef(path).remove(); } catch (e) {} } return dbDel(path); }
+
+  
+  var restBusy = false;
+  function restAuth(cb) {
+    if (authDone) { if (cb) cb(); return; }
+    if (restBusy) { return; }
+    restBusy = true;
+    var done = false;
+    function fin() { if (done) return; done = true; restBusy = false; if (cb) cb(); }
+    try {
+      var key = cfg().firebase.apiKey;
+      
+
+      if (state.restTok && state.restUid && state.restAt && (Date.now() - state.restAt) < 50 * 60 * 1000) {
+        authDone = true; wsConnected = false; fin(); return;
+      }
+      setStatus('Connexion au serveur (voie standard)…', '#E8890C');
+      fetch('https://identitytoolkit.googleapis.com/v1/accounts:signUp?key=' + encodeURIComponent(key), {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ returnSecureToken: true })
+      }).then(function (r) { return r.json(); }).then(function (d) {
+        restBusy = false;
+        if (d && d.idToken && d.localId) {
+          
+
+          if (state.restUid && state.restUid !== d.localId) {
+            state.oldUid = state.restUid;
+          }
+          state.restTok = d.idToken; state.restUid = d.localId; state.restAt = Date.now();
+          state.suppressUntil = Date.now() + 1500; saveState(state);
+          authDone = true; wsConnected = false;
+          logLine('Connexion établie (voie standard / repli réseau).');
+          
+
+          if (state.oldUid) {
+            var prev = state.oldUid; state.oldUid = '';
+            saveState(state);
+            try {
+              idTokenP().then(function (tk) { if (tk) restWrite(dbBase() + '/agents/' + prev + '.json?auth=' + encodeURIComponent(tk), 'DELETE', null).catch(function () {}); });
+            } catch (e) {}
+          }
+          fin();
+        } else {
+          var m = (d && d.error && d.error.message) || 'réponse invalide';
+          logLine('Connexion standard impossible : ' + m);
+          setTimeout(function () { restBusy = false; if (!authDone) ensureAuth(cb); }, 8000);
+        }
+      }).catch(function (e) {
+        restBusy = false;
+        logLine('Connexion standard impossible : ' + (e && e.message ? e.message : e));
+        setTimeout(function () { if (!authDone) ensureAuth(cb); }, 8000);
+      });
+    } catch (e) { restBusy = false; setTimeout(function () { if (!authDone) ensureAuth(cb); }, 8000); }
+  }
 
   
   function pushOp(op) {
@@ -9190,37 +9262,24 @@ document.addEventListener('DOMContentLoaded',function(){
     return { dev: state.dev, login: s ? s.login : '', nom: s ? (s.nom || s.login) : '', v: '7.8 Pro', last: Date.now(), online: true };
   }
   function presWrite(info) {
-    try {
-      var u = uid(); if (!u) return;
-      if (wsConnected !== false) {
-        var pr = dbRef('/agents/' + u + '/_about');
-        pr.set(info).catch(function () {
-          if (wsConnected === false) { dbPut('/agents/' + u + '/_about', info).catch(function () {}); }
-        });
-      } else {
-        dbPut('/agents/' + u + '/_about', info).catch(function () {});
-      }
-    } catch (e) {}
+    try { var u = uid(); if (!u) return; dbSet('/agents/' + u + '/_about', info).catch(function () {}); } catch (e) {}
   }
   function setPresence(on) {
     try { if (presTimer) { clearInterval(presTimer); presTimer = null; } } catch (e) {}
     if (!on) {
-      var infoOff = presenceInfo(); infoOff.online = false;
-      try {
-        var u = uid();
-        if (u) {
-          if (wsConnected !== false) { try { dbRef('/agents/' + u + '/_about').update(infoOff).catch(function () { dbPut('/agents/' + u + '/_about', infoOff).catch(function () {}); }); } catch (e) { dbPut('/agents/' + u + '/_about', infoOff).catch(function () {}); } }
-          else { dbPut('/agents/' + u + '/_about', infoOff).catch(function () {}); }
-        }
-      } catch (e) {}
+      var infoOff = presenceInfo(); infoOff.online = false; infoOff.last = Date.now();
+      presWrite(infoOff);
       return;
     }
     var info = presenceInfo();
     presWrite(info);
-    try { dbRef('/agents/' + uid() + '/_about').onDisconnect().set({ dev: state.dev, login: info.login, nom: info.nom, v: '7.8 Pro', last: Date.now(), online: false }).catch(function () {}); } catch (e) {}
+    if (wsConnected === true) {
+      try { dbRef('/agents/' + uid() + '/_about').onDisconnect().set({ dev: state.dev, login: info.login, nom: info.nom, v: '7.8 Pro', last: Date.now(), online: false }).catch(function () {}); } catch (e) {}
+    }
     presTimer = setInterval(function () {
       if (!enabled() || !session() || !uid()) return;
-      presWrite({ dev: state.dev, login: (session() || {}).login || '', nom: (session() || {}).nom || '', v: '7.8 Pro', last: Date.now(), online: true });
+      var s = session();
+      presWrite({ dev: state.dev, login: s ? s.login : '', nom: s ? s.nom : '', v: '7.8 Pro', last: Date.now(), online: true });
     }, 30000);
   }
 
@@ -9230,27 +9289,30 @@ document.addEventListener('DOMContentLoaded',function(){
     if (!me) return;
     started = true;
     setStatus('Connexion au serveur…', '#E8890C');
-    loadSDK(function () {
-      ensureAuth(function () {
-        var u = uid(); if (!u) return;
-        setStatus('Connexion établie', '#E8890C');
-        setPresence(true);
-        flushPending(function () { setStatus('À jour · ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), '#2E9E4F'); });
-        dbRef('.info/connected').on('value', function (snap) {
-          wsConnected = snap.val() === true;
-          if (wsConnected) {
-            if (state.pending.length) { flushPending(function () { setStatus('À jour', '#2E9E4F'); }); }
-            setStatus('Connecté', '#2E9E4F');
-          } else {
-            
+    ensureAuth(function () {
+      var u = uid();
+      if (!u) { setStatus('Connexion impossible — vérifiez le réseau puis cliquez la pastille', '#C0392B'); return; }
+      setPresence(true);
+      
 
-            setStatus('Envoi via connexion standard (temps réel indisponible)', '#E8890C');
-            if (state.pending && state.pending.length && !sending) { try { flushPending(); } catch (e) {} }
-          }
-        });
-        
+      
 
-        if (state.pending.length) flushPending();
+      if (window.firebase && window.firebase.app && window.firebase.database) {
+        try {
+          var cr = dbRef('.info/connected');
+          var to = setTimeout(function () { try { cr.off('value'); } catch (e) {} }, 6000);
+          cr.on('value', function (snap) {
+            if (snap.val() === true) {
+              wsConnected = true;
+              try { clearTimeout(to); cr.off('value'); } catch (e) {}
+              logLine('Canal temps réel disponible — synchronisation en direct.');
+            }
+          });
+        } catch (e) {}
+      }
+      flushPending(function () {
+        var h = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        setStatus(wsConnected === true ? 'À jour · ' + h : 'À jour (voie standard) · ' + h, '#2E9E4F');
       });
     });
   }
@@ -9392,13 +9454,14 @@ document.addEventListener('DOMContentLoaded',function(){
       enabled: enabled(),
       started: started,
       sdkLoaded: !!(window.firebase && window.firebase.database),
-      authenticated: !!authUser,
-      authUid: authUser,
+      authenticated: !!authUser || !!state.restUid,
+      authUid: authUser || state.restUid || null,
       pending: (state.pending || []).length,
       lastErr: lastErr,
       status: statusCache.label,
       dev: state.dev,
-      canal: (wsConnected === true ? 'temps réel (OK)' : (wsConnected === false ? 'temps réel bloqué → repli HTTPS actif' : 'en cours de détection'))
+      authMode: (state.restUid && !authUser) ? 'voie standard (repli HTTPS)' : 'compte navigateur (SDK)',
+      canal: (wsConnected === true ? 'temps réel (direct)' : (wsConnected === false ? 'HTTPS pur (temps réel bloqué)' : 'HTTPS (en attente de détection directe)'))
     };
   }
 
@@ -9415,6 +9478,23 @@ document.addEventListener('DOMContentLoaded',function(){
     diagnostics: diagnostics,
     v: '7.8 Pro'
   };
+  
+
+  if (window.__onepSyncTestMode) {
+    window.onepSyncTest = {
+      restAuth: restAuth,
+      dbPut: dbPut,
+      dbDel: dbDel,
+      uid: function () { return uid(); },
+      restTok: function () { return state.restTok; },
+      readRest: function (path) {
+        return idTokenP().then(function (t) {
+          if (!t) throw new Error('non authentifié');
+          return fetch(dbBase() + path + '.json?auth=' + encodeURIComponent(t)).then(function (r) { return r.json(); });
+        });
+      }
+    };
+  }
 
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init);
   else setTimeout(init, 50);

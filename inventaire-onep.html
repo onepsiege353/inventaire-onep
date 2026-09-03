@@ -8942,35 +8942,60 @@ document.addEventListener('DOMContentLoaded',function(){
     attempt();
   }
 
-  var authDone = false;
+  
+  var authDone = false;      
+
+  var authGates = [];        
+
+  var authFlow = null;       
+
+  var restBusy = false;      
+
+  var authRetryT = null;
+  function authNotify() {
+    if (!authDone) return;
+    var w = authGates; authGates = [];
+    for (var i = 0; i < w.length; i++) { try { w[i](); } catch (e) {} }
+  }
+  function authRetry() {
+    clearTimeout(authRetryT);
+    authRetryT = setTimeout(function () { authFlow = null; if (!authDone) ensureAuth(null); }, 8000);
+  }
   function ensureAuth(cb) {
     if (authDone) { if (cb) cb(); return; }
-    var called = false;
-    function fin() { if (called) return; called = true; if (cb) cb(); }
+    if (cb) authGates.push(cb);
+    if (authFlow) return;                     
+
+    authFlow = 'sdk';
     
 
     loadSDK(function () {
-      if (authDone || called) { return; }
+      if (authDone) { authNotify(); return; }
+      if (authFlow !== 'sdk') return;         
+
       try {
         var app = (window.firebase.apps && window.firebase.apps.length) ? window.firebase.app() : window.firebase.initializeApp(cfg().firebase);
         window.firebase.auth(app).signInAnonymously().then(function () {
-          if (state.restUid) { 
+          if (authDone || authFlow !== 'sdk') {
+            
+
+            
 
             try { window.firebase.auth().signOut(); } catch (e) {}
             return;
           }
-          if (!authDone) { authDone = true; state.suppressUntil = Date.now() + 1500; saveState(state); }
-          fin();
+          authDone = true; wsConnected = null;
+          state.suppressUntil = Date.now() + 1500; saveState(state);
+          logLine('Connexion établie (compte navigateur).');
+          authNotify();
         }).catch(function () {
-          if (!authDone && !called) restAuth(fin);
+          if (!authDone && authFlow === 'sdk') { authFlow = null; restAuth(null); }
         });
-      } catch (e) { if (!authDone && !called) restAuth(fin); }
+      } catch (e) { if (!authDone && authFlow === 'sdk') { authFlow = null; restAuth(null); } }
     });
     
 
-    setTimeout(function () {
-      if (!authDone && !called && !restBusy) restAuth(fin);
-    }, 5000);
+    setTimeout(function () { if (!authDone) restAuth(null); }, 5000);
   }
 
   function uid() {
@@ -9009,7 +9034,6 @@ document.addEventListener('DOMContentLoaded',function(){
   function dbRem(path) { if (wsConnected === true) { try { return dbRef(path).remove(); } catch (e) {} } return dbDel(path); }
 
   
-  var restBusy = false;
   function restTryRefresh(cb) {
     if (!state.restRefresh || !state.restUid) { if (cb) cb(false); return; }
     try {
@@ -9021,7 +9045,7 @@ document.addEventListener('DOMContentLoaded',function(){
         if (d && d.id_token && d.user_id) {
           state.restTok = d.id_token; state.restUid = d.user_id; state.restAt = Date.now();
           if (d.refresh_token) state.restRefresh = d.refresh_token;
-          saveState(state); authDone = true; wsConnected = false;
+          saveState(state);
           logLine('Session du poste conservée (voie standard).');
           if (cb) cb(true);
         } else { if (cb) cb(false); }
@@ -9030,22 +9054,32 @@ document.addEventListener('DOMContentLoaded',function(){
   }
   function restAuth(cb) {
     if (authDone) { if (cb) cb(); return; }
-    if (restBusy) { return; }
+    if (cb) authGates.push(cb);
+    if (restBusy) return;                      
+
+    if (authFlow !== 'rest') authFlow = 'rest';
     restBusy = true;
-    var done = false;
-    function fin() { if (done) return; done = true; restBusy = false; if (cb) cb(); }
+    var terminee = false;
+    function fin(ok) {
+      if (terminee) return; terminee = true; restBusy = false;
+      if (ok) {
+        authDone = true; wsConnected = false;
+        authNotify();
+      } else if (!authDone) {
+        authRetry();                           
+
+      }
+    }
     try {
       var key = cfg().firebase.apiKey;
       
 
-      if (state.restTok && state.restUid && state.restAt && (Date.now() - state.restAt) < 50 * 60 * 1000) {
-        authDone = true; wsConnected = false; fin(); return;
-      }
+      if (state.restTok && state.restUid && state.restAt && (Date.now() - state.restAt) < 50 * 60 * 1000) { fin(true); return; }
       
 
       setStatus('Connexion au serveur (voie standard)…', '#E8890C');
       restTryRefresh(function (ok) {
-        if (ok) { restBusy = false; fin(); return; }
+        if (ok) { fin(true); return; }
         
 
         
@@ -9055,27 +9089,24 @@ document.addEventListener('DOMContentLoaded',function(){
             method: 'POST', headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ returnSecureToken: true })
           }).then(function (r) { return r.json(); }).then(function (d) {
-            restBusy = false;
             if (d && d.idToken && d.localId) {
               state.restTok = d.idToken; state.restUid = d.localId; state.restAt = Date.now();
               state.restRefresh = d.refreshToken || state.restRefresh;
               state.suppressUntil = Date.now() + 1500; saveState(state);
-              authDone = true; wsConnected = false;
               logLine('Connexion établie (voie standard).');
-              fin();
+              fin(true);
             } else {
               var m = (d && d.error && d.error.message) || 'réponse invalide';
               logLine('Connexion standard impossible : ' + m);
-              setTimeout(function () { restBusy = false; if (!authDone) ensureAuth(cb); }, 8000);
+              fin(false);
             }
           }).catch(function (e) {
-            restBusy = false;
             logLine('Connexion standard impossible : ' + (e && e.message ? e.message : e));
-            setTimeout(function () { if (!authDone) ensureAuth(cb); }, 8000);
+            fin(false);
           });
-        } catch (e) { restBusy = false; setTimeout(function () { if (!authDone) ensureAuth(cb); }, 8000); }
+        } catch (e) { logLine('Connexion standard impossible.'); fin(false); }
       });
-    } catch (e) { restBusy = false; setTimeout(function () { if (!authDone) ensureAuth(cb); }, 8000); }
+    } catch (e) { fin(false); }
   }
 
   
@@ -9199,15 +9230,20 @@ document.addEventListener('DOMContentLoaded',function(){
     });
   }
 
+  
+
+  
+
+  var debounceT = {};
   function onStorageWrite(key, val) {
     try {
       var code = codeForKey(key);
       if (!code || !enabled()) return;
       if (sending) { setTimeout(function () { onStorageWrite(key, val); }, 900); return; }
       var arr; try { arr = JSON.parse(val); if (!Array.isArray(arr)) arr = []; } catch (e) { arr = []; }
-      clearTimeout(onStorageWrite._t);
+      clearTimeout(debounceT[code]);
       var codeX = code, arrX = arr;
-      onStorageWrite._t = setTimeout(function () { maybeSync(codeX, arrX); }, 700);
+      debounceT[code] = setTimeout(function () { delete debounceT[codeX]; maybeSync(codeX, arrX); }, 700);
     } catch (e) {}
   }
 

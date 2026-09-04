@@ -3,78 +3,223 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Inventaire ONEP — Console admin (vue globale en ligne)</title>
-<link rel="icon" href="data:image/png;base64,iVBORw0KGgo=" />
+<title>ONEP — Console d'administration · Inventaire &amp; Patrimoine des immobilisations</title>
+<link rel="icon" href="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAADNElEQVR42u1Xy24cRRStW69+Tfc8M/bYxo6IYw2CRIAzwopIwgoJNkgsIiFlxZ5fYcUvREJCSAhlxSYJEVIQOFkEYYMzxLQdzxi7NW73THdXV1cXu0ixjL3Ck8Wc5V3UOfecq7pV4Ny6jY6BRv8P4GiBnhHx0fNfCMFnSH5so3gM5C+JwGjMwGPq/oULr4QDEwETAWMFPa7YKHHftZw9m9Nlg1MUHKZbGonnfhCvVEtmv7PU3PjhkX+NYFCfvr/44M7PzzrtuerayuULQqYxMIrR13d/b1+52Ppt6fwULfIMI6DF3cddd31rcOlEBxqu4Zcs10izogFI3mck/1FIsYONxsq0Z/6kCmXf/LBz7bMP2vdVocm7S62LBsVicbY+ariGGw7T7CBKZa40u/LGTPMgSuTqn3202R/Izz96u3mqAx5noVRquheGC4CsTSELp38YL8/TwQNAtDNbM7vrXV+06k7pi0/eeRinsoI0MlMptYUzVqs4RiFzFYvcTkUeS5Foi1PJGdZaF+rUGQDuXkqzZG3KM3aqjnN9L2HL0571S5ikbwGAWTL5HsZYffnt6vJQqPz8wmvtMMlqNmcQF1Ts7B9mu2GiAJCmlLBWw+NzzbI2OYevvnuUnOoAACClNbQqTq/muTN/DBLkWSSOhOSYMBQlgvzl747qJt76/t6TxWE0vDfnGXNPtwPbLVlRq2xSRgDPl/mG//yf4Ne13rlukLz5nw8E59btl3bB6/XSk0SRWqEFW6g63f4I2SIbtTim6wWiHRvip5dZPDpXNl1ucBSEybBetu1v/s4beRRFH0+jbFjAsOzZPEmlZBgZDANTRaH3NQ/u+PLGiRGEQpYNShjBZtoL04xoETHMnmGzel3p7PFhLCszZWNWAknWIrRfcU2LgTauumLzvXm3FzJ70HSNukZQNEu8TgkmBiinoDy54JGpUyMIhmIekPYrTmmv0NYNDQQZONuWWfCwfxBf9RjaWQ3UhiYIDqRydiM9qlA00Bq0TDPYTlDdozrgOMsZp32iCmUABApyoDGKEULtEyOYXMUTARMB4xAAY+SHVyaCcbgAR2cAzpr8uF0AZ/09/xewq3GU9Ei/zQAAAABJRU5ErkJggg==" />
 <style>
-  :root{--onep:#0B4F8A;--onep2:#083A66;--vert:#2E9E4F;--orange:#E8890C;--rouge:#C0392B;--fond:#EEF3F8;--line:#DDE6EE;}
-  *{box-sizing:border-box;margin:0;padding:0}
-  body{font-family:'Segoe UI',system-ui,Arial,sans-serif;background:var(--fond);color:#1E2A38}
-  header{background:linear-gradient(100deg,var(--onep2),var(--onep) 55%,#0E6BB8);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
-  header h1{font-size:1.05rem;font-weight:800;letter-spacing:.2px}
-  header .sous{font-size:.72rem;opacity:.85}
-  .spacer{flex:1}
-  .btn{border:0;border-radius:9px;padding:8px 13px;font-weight:700;cursor:pointer;font-size:.83rem;display:inline-flex;align-items:center;gap:6px;text-decoration:none}
-  .btn-p{background:var(--onep);color:#fff}.btn-v{background:var(--vert);color:#fff}.btn-r{background:#fff;color:var(--onep);border:1px solid #B9D8F3}
-  .btn-d{background:#FCE9E7;color:var(--rouge);border:1px solid #F3C1BB}.btn-o{background:var(--orange);color:#fff}.btn-g{background:#EDF2F7;color:#33434F;border:1px solid #CBD8E4}
-  .wrap{max-width:1320px;margin:16px auto;padding:0 14px}
-  .carte{background:#fff;border:1px solid var(--line);border-radius:14px;padding:16px;margin-bottom:14px;box-shadow:0 4px 14px rgba(11,79,138,.06)}
-  .stats{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:14px}
-  .stat{background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px 16px;min-width:140px;box-shadow:0 3px 10px rgba(11,79,138,.05);flex:1 1 150px}
-  .stat b{font-size:1.55rem;display:block}
-  .stat span{font-size:.74rem;color:#5B6B7B;font-weight:700}
-  .onglets{display:flex;gap:8px;flex-wrap:wrap;margin:10px 0}
-  .onglet{border:1px solid var(--line);background:#fff;border-radius:22px;padding:7px 15px;font-weight:800;font-size:.83rem;cursor:pointer;color:#3B4A59}
-  .onglet.active{background:var(--onep);color:#fff;border-color:var(--onep)}
-  .chips{display:flex;gap:8px;flex-wrap:wrap;margin:8px 0 12px}
-  .chip{border:1px solid var(--line);background:#F8FBFE;border-radius:16px;padding:5px 13px;font-weight:700;font-size:.8rem;cursor:pointer;color:#3B4A59}
-  .chip.active{background:#0B4F8A;color:#fff;border-color:#0B4F8A}
-  input[type=search],input[type=text],input[type=password],textarea,select{width:100%;border:1px solid #C9D8E5;border-radius:9px;padding:8px 10px;font-size:.87rem}
-  .ligne{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:8px}
-  .table-wrap{overflow:auto;max-height:58vh;border:1px solid var(--line);border-radius:10px}
-  table{border-collapse:collapse;width:100%;font-size:.79rem;min-width:900px}
-  th{background:#F2F7FB;color:#0B4F8A;text-align:left;padding:8px 9px;position:sticky;top:0;font-size:.7rem;text-transform:uppercase;letter-spacing:.4px}
-  td{border-top:1px solid #EDF2F7;padding:6px 9px;vertical-align:top}
-  tr:hover td{background:#F6FAFD}
-  .plaque{background:#EFF6FB;border:1px solid #C9E1F2;border-radius:9px;padding:7px 10px;font-size:.76rem;color:#0B4F8A;font-weight:700;display:inline-block;margin:1px 2px}
-  .note{font-size:.8rem;color:#5B6B7B;line-height:1.6}
-  .badge-on{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--vert);margin-right:5px}
-  .badge{display:inline-block;border-radius:14px;padding:2px 10px;font-size:.7rem;font-weight:800}
-  .b-vert{background:#E6F6EC;color:#1B7A3F;border:1px solid #BFE6CD}
-  .b-rouge{background:#FDECEB;color:#B71C1C;border:1px solid #F2C2BE}
-  .b-orange{background:#FFF3E0;color:#9A5B00;border:1px solid #F5D9A8}
-  .session{background:#F4F8FC;border:1px solid #DCE8F2;border-radius:10px;padding:9px 12px;margin:6px 0;display:flex;gap:12px;flex-wrap:wrap;align-items:center}
-  .session .info{flex:1;min-width:220px;font-size:.8rem;color:#33434F}
-  .centrer{display:flex;align-items:center;justify-content:center;min-height:90vh;padding:20px}
-  .login{background:#fff;border:1px solid var(--line);border-radius:16px;padding:28px;max-width:430px;width:100%;box-shadow:0 12px 34px rgba(11,79,138,.12)}
-  .login h2{color:var(--onep);font-size:1.2rem;margin-bottom:4px}
-  .login .sous{color:#7A8A99;font-size:.8rem;margin-bottom:16px;line-height:1.5}
-  .login .field{margin-bottom:12px}
-  .login label{display:block;font-weight:700;font-size:.8rem;margin-bottom:4px}
-  .login .err{color:var(--rouge);font-size:.8rem;margin:8px 0}
-  .modal{position:fixed;inset:0;background:rgba(10,25,40,.55);display:none;align-items:flex-start;justify-content:center;padding:4vh 14px;z-index:50}
-  .modal.ouv{display:flex}
-  .modal-box{background:#fff;border-radius:14px;max-width:900px;width:100%;max-height:88vh;overflow:auto;padding:16px}
-  .modal h3{color:var(--onep);margin-bottom:10px;font-size:1rem}
-  .petit{font-size:.76rem;color:#7A8A99}
-  .gris{color:#5B6B7B}
-  .ml{margin-left:8px}
-  .fade{color:#A9B7C3}
-  .stat.vert b{color:#1B7A3F}.stat.rouge b{color:#B71C1C}.stat.orange b{color:#9A5B00}
-  @media(max-width:640px){.stat{min-width:calc(50% - 8px)}}
+/* ============================================================================
+   ONEP — Console d'administration · Office National de l'Eau Potable (Côte d'Ivoire)
+   Identité visuelle « Eau » : bleu nuit → bleu ONEP (#1260B0) → azur, vagues, goutte.
+   ============================================================================ */
+:root{
+  --nuit:#052B4C; --nuit2:#073A66;
+  --onep:#0B4F8A; --onep-b:#1260B0; --ciel:#2FA3E8; --azur:#7FC9F0; --glace:#E9F4FC;
+  --bleu-texte:#13406B;
+  --vert:#1E9E5A; --vert-2:#2BB673;
+  --orange:#F09100; --rouge:#D64541;
+  --fond1:#EAF3FB; --fond2:#F6FAFE;
+  --line:#DCE8F4; --txt:#1F2D3D; --txt2:#5C7186; --txt3:#8AA0B4;
+  --r:14px; --r2:20px;
+  --omb:0 10px 30px rgba(6,52,102,.10);
+  --omb2:0 4px 14px rgba(6,52,102,.07);
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{
+  font-family:'Segoe UI',system-ui,-apple-system,'Helvetica Neue',Arial,sans-serif;
+  background:
+    radial-gradient(1100px 500px at 85% -8%, rgba(47,163,232,.16), transparent 60%),
+    radial-gradient(900px 480px at -8% 12%, rgba(18,96,176,.10), transparent 55%),
+    linear-gradient(180deg,var(--fond1),var(--fond2) 42%, #F3F8FD);
+  background-attachment:fixed;
+  color:var(--txt);min-height:100vh;
+}
+::-webkit-scrollbar{width:11px;height:11px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:#C4D8EA;border-radius:20px;border:3px solid rgba(0,0,0,0)}
+::-webkit-scrollbar-thumb:hover{background:#8FB8DC}
+::selection{background:#BFDFF6;color:#04294A}
+
+/* ---------- En-tête ---------- */
+header{
+  position:relative;overflow:hidden;
+  background:linear-gradient(118deg,var(--nuit) 0%,var(--nuit2) 30%,var(--onep-b) 72%,#1E8BD4 100%);
+  color:#fff;
+  padding:0 22px;min-height:74px;
+  display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  box-shadow:0 8px 26px rgba(5,43,76,.28);
+}
+header::before{ /* halo goutte */
+  content:"";position:absolute;top:-70px;right:-40px;width:250px;height:250px;border-radius:50%;
+  background:radial-gradient(circle at 30% 30%, rgba(127,201,240,.22), rgba(127,201,240,0) 62%);pointer-events:none;
+}
+.hdr-bulle{position:absolute;border-radius:50%;background:radial-gradient(circle at 35% 30%, rgba(255,255,255,.10), transparent 65%);pointer-events:none}
+.b1{width:90px;height:90px;top:-32px;left:32%}
+.b2{width:46px;height:46px;top:34px;left:58%}
+.b3{width:130px;height:130px;top:-70px;left:74%}
+.waves{position:absolute;left:0;right:0;bottom:-1px;height:26px;width:100%;opacity:.9}
+.brand{display:flex;align-items:center;gap:12px;position:relative;z-index:1}
+.brand img.logo{height:46px;width:auto;display:block;filter:drop-shadow(0 2px 5px rgba(0,0,0,.22))}
+.brand .sep{width:1px;height:38px;background:linear-gradient(180deg,rgba(255,255,255,.55),rgba(255,255,255,.10))}
+.brand .t1{font-size:.92rem;font-weight:800;letter-spacing:.2px;line-height:1.15}
+.brand .t2{font-size:.68rem;opacity:.92;font-weight:600;letter-spacing:.2px}
+.hdr-spacer{flex:1}
+.conn-pill{display:inline-flex;align-items:center;gap:8px;background:rgba(255,255,255,.13);border:1px solid rgba(255,255,255,.28);
+  backdrop-filter:blur(6px);border-radius:30px;padding:6px 14px;font-size:.74rem;font-weight:700;color:#fff;position:relative;z-index:1}
+.conn-dot{width:9px;height:9px;border-radius:50%;background:#3BE38A;box-shadow:0 0 0 3px rgba(59,227,138,.25);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{box-shadow:0 0 0 3px rgba(59,227,138,.25)}50%{box-shadow:0 0 0 6px rgba(59,227,138,.12)}}
+.hdr-actions{display:flex;gap:8px;align-items:center;position:relative;z-index:1;flex-wrap:wrap}
+
+/* ---------- Boutons ---------- */
+.btn{border:0;border-radius:11px;padding:9px 15px;font-weight:800;font-size:.8rem;cursor:pointer;
+  display:inline-flex;align-items:center;gap:7px;text-decoration:none;transition:transform .08s,box-shadow .15s,background .15s;letter-spacing:.1px}
+.btn:active{transform:translateY(1px) scale(.99)}
+.btn-p{color:#fff;background:linear-gradient(135deg,var(--onep-b),var(--onep));box-shadow:0 6px 16px rgba(11,79,138,.30)}
+.btn-p:hover{background:linear-gradient(135deg,#1571CC,#0B4F8A)}
+.btn-v{color:#fff;background:linear-gradient(135deg,#17A25E,var(--vert));box-shadow:0 6px 16px rgba(30,158,90,.26)}
+.btn-v:hover{background:linear-gradient(135deg,#1DBD6D,#17A25E)}
+.btn-o{color:#fff;background:linear-gradient(135deg,#FFA51F,#E88700);box-shadow:0 6px 16px rgba(240,145,0,.26)}
+.btn-o:hover{background:linear-gradient(135deg,#FFB43D,#F09100)}
+.btn-g{color:#33506B;background:#fff;border:1px solid #CFE0EF;box-shadow:0 4px 12px rgba(11,79,138,.08)}
+.btn-g:hover{background:#F1F8FE}
+.btn-r{color:var(--onep-b);background:#fff;border:1px solid #BFDBF2;box-shadow:0 4px 12px rgba(11,79,138,.08)}
+.btn-r:hover{background:#EFF7FF}
+.btn-d{color:#B3302B;background:#FCEBE9;border:1px solid #F2C6C1}
+.btn-d:hover{background:#FBDFDC}
+
+/* ---------- Canevas ---------- */
+.wrap{max-width:1380px;margin:0 auto;padding:22px 18px 44px}
+.intro{display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px}
+.intro .it1{font-size:1.22rem;font-weight:800;color:var(--bleu-texte);letter-spacing:.2px}
+.intro .it2{font-size:.8rem;color:var(--txt2);font-weight:600}
+.intro .spacer2{flex:1}
+.badge-live{background:linear-gradient(135deg,#E8F7EF,#D8F3E4);color:#117A42;border:1px solid #BEE7CF;border-radius:30px;padding:5px 13px;font-size:.72rem;font-weight:800;display:inline-flex;align-items:center;gap:6px}
+.badge-live .ld{width:8px;height:8px;border-radius:50%;background:#1E9E5A;animation:pulse 2s infinite}
+
+/* ---------- Cartes stats ---------- */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(168px,1fr));gap:12px;margin-bottom:16px}
+.stat{position:relative;background:#fff;border:1px solid var(--line);border-radius:16px;padding:14px 16px 13px 19px;overflow:hidden;
+  box-shadow:var(--omb2);transition:transform .12s,box-shadow .15s;min-width:0}
+.stat:hover{transform:translateY(-2px);box-shadow:var(--omb)}
+.stat::before{content:"";position:absolute;left:0;top:14px;bottom:14px;width:4px;border-radius:4px;background:linear-gradient(180deg,var(--ciel),var(--onep-b))}
+.stat::after{content:"";position:absolute;right:-28px;top:-28px;width:80px;height:80px;border-radius:50%;background:radial-gradient(circle,rgba(47,163,232,.08),transparent 70%)}
+.stat b{display:block;font-size:1.62rem;font-weight:800;line-height:1.1;color:var(--nuit);font-variant-numeric:tabular-nums}
+.stat span{display:block;font-size:.64rem;color:var(--txt2);font-weight:800;text-transform:uppercase;letter-spacing:.55px;margin-top:5px}
+.stat.vert::before{background:linear-gradient(180deg,#5ED49C,var(--vert))}
+.stat.vert b{color:#117A42}
+.stat.rouge::before{background:linear-gradient(180deg,#F08B86,var(--rouge))}
+.stat.rouge b{color:#B3302B}
+.stat.orange::before{background:linear-gradient(180deg,#FFC264,var(--orange))}
+.stat.orange b{color:#9A5B00}
+
+/* ---------- Cartes & onglets ---------- */
+.carte{background:#fff;border:1px solid var(--line);border-radius:var(--r2);padding:16px 18px;margin-bottom:16px;box-shadow:var(--omb2)}
+.onglets{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;border-bottom:2px solid #EAF1F8;padding-bottom:12px}
+.onglet{border:1px solid #D3E2F0;background:#F8FBFE;color:#48617B;border-radius:30px;padding:8px 16px;font-weight:800;font-size:.82rem;cursor:pointer;transition:all .12s}
+.onglet:hover{border-color:var(--ciel);color:var(--onep-b)}
+.onglet.active{background:linear-gradient(135deg,var(--onep-b),var(--onep));color:#fff;border-color:transparent;box-shadow:0 6px 16px rgba(18,96,176,.32)}
+.chips{display:flex;gap:8px;flex-wrap:wrap;margin:2px 0 12px}
+.chip{border:1px solid #D8E5F0;background:#FDFEFF;color:#48617B;border-radius:30px;padding:6px 14px;font-weight:800;font-size:.78rem;cursor:pointer;transition:all .12s}
+.chip:hover{border-color:var(--ciel)}
+.chip.active{background:linear-gradient(135deg,#1E86CF,#0B5AA0);color:#fff;border-color:transparent;box-shadow:0 5px 14px rgba(18,96,176,.25)}
+
+/* ---------- Formulaires ---------- */
+input[type=search],input[type=text],input[type=password],textarea,select{width:100%;border:1px solid #C9DCEE;border-radius:11px;padding:9px 12px;font-size:.86rem;background:#FDFEFF;color:var(--txt);outline:none;transition:border .12s,box-shadow .12s}
+input:focus,textarea:focus,select:focus{border-color:var(--ciel);box-shadow:0 0 0 3px rgba(47,163,232,.18);background:#fff}
+.ligne{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+
+/* ---------- Tableau ---------- */
+.table-wrap{overflow:auto;max-height:62vh;border:1px solid #E3EDF6;border-radius:13px;background:#fff}
+table{border-collapse:separate;border-spacing:0;width:100%;font-size:.79rem;min-width:900px}
+thead th{position:sticky;top:0;z-index:5;background:linear-gradient(180deg,#F4F9FD,#E8F2FB);color:var(--nuit2);text-align:left;
+  padding:10px 11px;font-size:.66rem;text-transform:uppercase;letter-spacing:.6px;font-weight:800;border-bottom:2px solid #D8E6F4;white-space:nowrap}
+tbody td{border-bottom:1px solid #EEF4FA;padding:8px 11px;vertical-align:top;color:#263B4E}
+tbody tr{transition:background .08s}
+tbody tr:nth-child(even) td{background:#FAFCFE}
+tbody tr:hover td{background:#EFF7FE}
+tbody tr:last-child td{border-bottom:0}
+.table-wrap::-webkit-scrollbar-track{background:#F2F7FB}
+
+/* ---------- Badges / pastilles ---------- */
+.plaque{background:linear-gradient(135deg,#E7F2FC,#DCEBF9);border:1px solid #C4DDF1;border-radius:10px;padding:6px 11px;font-size:.75rem;color:var(--onep-b);font-weight:800;display:inline-block;margin:1px 2px}
+.badge{display:inline-block;border-radius:20px;padding:3px 11px;font-size:.67rem;font-weight:800;letter-spacing:.2px}
+.b-vert{background:#E4F6EC;color:#117A42;border:1px solid #BBE6CC}
+.b-rouge{background:#FDECEB;color:#B3302B;border:1px solid #F2C2BE}
+.b-orange{background:#FFF4E2;color:#9A5B00;border:1px solid #F7DFB4}
+
+/* ---------- Sessions / appareils ---------- */
+.session{background:linear-gradient(180deg,#FFFFFF,#F6FBFE);border:1px solid #DFEBF5;border-radius:13px;padding:10px 14px;margin:7px 0;
+  display:flex;gap:12px;flex-wrap:wrap;align-items:center;box-shadow:0 3px 10px rgba(11,79,138,.05)}
+.session .info{flex:1;min-width:230px;font-size:.8rem;color:#33485C;line-height:1.5}
+.note{font-size:.79rem;color:var(--txt2);line-height:1.65}
+.gris{color:#6C8196}
+.fade{color:#B2C2D1}
+.petit{font-size:.75rem;color:var(--txt2)}
+.badge-on{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--vert);margin-right:6px;box-shadow:0 0 0 3px rgba(30,158,90,.16)}
+.countRow{margin-top:10px;font-size:.78rem;color:var(--txt2);font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+
+/* ---------- Connexion ---------- */
+.centrer{display:flex;align-items:center;justify-content:center;min-height:100vh;padding:22px;position:relative;overflow:hidden}
+.login-fond{position:absolute;inset:0;z-index:0;
+  background:
+    radial-gradient(820px 420px at 78% -6%, rgba(47,163,232,.20), transparent 60%),
+    radial-gradient(700px 420px at 10% 110%, rgba(18,96,176,.16), transparent 55%),
+    linear-gradient(160deg,var(--nuit) 0%,var(--onep-b) 55%,#1E8BD4 130%);}
+.login-fond .gf1,.gf2{position:absolute;border-radius:50%;filter:blur(2px);opacity:.5}
+.gf1{width:360px;height:360px;left:-110px;top:-80px;background:radial-gradient(circle at 40% 35%,rgba(255,255,255,.10),transparent 65%)}
+.gf2{width:430px;height:430px;right:-150px;bottom:-140px;background:radial-gradient(circle at 40% 35%,rgba(255,255,255,.09),transparent 65%)}
+.waves-back{position:absolute;left:0;right:0;bottom:0;z-index:0;opacity:.92}
+.login{position:relative;z-index:2;background:rgba(255,255,255,.98);border:1px solid rgba(255,255,255,.6);border-radius:24px;padding:32px 34px;max-width:460px;width:100%;
+  box-shadow:0 30px 70px rgba(3,27,51,.45);backdrop-filter:blur(8px)}
+.login::before{content:"";position:absolute;inset:0 0 auto 0;height:6px;border-radius:24px 24px 0 0;background:linear-gradient(90deg,var(--nuit),var(--onep-b),var(--ciel))}
+.login-brand{display:flex;flex-direction:column;align-items:center;margin-bottom:14px}
+.login-brand img.emb{width:78px;height:78px;border-radius:22px;box-shadow:0 10px 24px rgba(11,79,138,.28);margin-bottom:10px;background:#fff;padding:4px}
+.login-brand .onep-ttl{font-size:1.7rem;font-weight:900;letter-spacing:5px;color:var(--onep-b)}
+.login-brand .onep-sub{font-size:.76rem;font-weight:700;color:var(--txt2);letter-spacing:.5px;margin-top:2px}
+.login-brand .sep2{height:2px;width:70px;margin:10px auto 0;border-radius:2px;background:linear-gradient(90deg,transparent,var(--ciel),transparent)}
+.login h2{color:var(--nuit2);font-size:1.08rem;font-weight:800;text-align:center;margin-bottom:4px}
+.login .sous{color:var(--txt2);font-size:.8rem;margin-bottom:18px;line-height:1.6;text-align:center}
+.login .field{margin-bottom:13px}
+.login label{display:block;font-weight:800;font-size:.72rem;margin-bottom:5px;color:#3A5772;text-transform:uppercase;letter-spacing:.5px}
+.login .err{color:var(--rouge);font-size:.8rem;margin:9px 0;text-align:center;font-weight:700}
+.login .hint{font-size:.73rem;color:var(--txt2);line-height:1.6;background:#F3F9FE;border:1px solid #D9E9F7;border-radius:11px;padding:10px 12px;margin-top:14px}
+.login .hint b{color:var(--onep-b)}
+.login .hint code{background:#E3EFFA;border-radius:5px;padding:0 4px;color:#0B5CA5;font-weight:800}
+
+/* ---------- Modale ---------- */
+.modal{position:fixed;inset:0;background:rgba(5,32,58,.58);display:none;align-items:flex-start;justify-content:center;padding:5vh 16px;z-index:100;backdrop-filter:blur(4px)}
+.modal.ouv{display:flex}
+.modal-box{background:#fff;border-radius:18px;max-width:920px;width:100%;max-height:88vh;overflow:auto;padding:20px 22px;box-shadow:0 30px 70px rgba(3,27,51,.5)}
+.modal h3{color:var(--nuit2);margin-bottom:12px;font-size:1.05rem;display:flex;align-items:center;gap:8px}
+.modal-box textarea{font-family:Consolas,'Courier New',monospace;font-size:.78rem;line-height:1.5}
+
+/* ---------- Divers ---------- */
+.ml{margin-left:8px}
+.footer{max-width:1380px;margin:0 auto;padding:6px 18px 30px;display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:.72rem;color:var(--txt3)}
+.footer b{color:var(--txt2)}
+@media(max-width:720px){
+  header{min-height:auto;padding:12px 14px;gap:10px}
+  .brand img.logo{height:38px}
+  .stats{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}
+  .login{padding:24px 20px}
+}
 </style>
 </head>
 <body>
 
 <!-- ================= ÉCRAN DE CONNEXION ================= -->
 <div id="vLogin" class="centrer">
+  <div class="login-fond"><div class="gf1"></div><div class="gf2"></div></div>
+  <svg class="waves-back" viewBox="0 0 1440 130" preserveAspectRatio="none" aria-hidden="true"><path fill="#EAF3FB" fill-opacity="0.16" d="M0,64 C240,110 480,10 720,46 C960,84 1200,120 1440,58 L1440,130 L0,130 Z"/><path fill="#FFFFFF" fill-opacity="0.07" d="M0,96 C300,40 620,132 900,92 C1120,60 1320,96 1440,78 L1440,130 L0,130 Z"/></svg>
   <div class="login">
-    <div style="text-align:center;margin-bottom:10px;">
-      <div style="width:64px;height:64px;margin:0 auto 8px;border-radius:16px;background:linear-gradient(135deg,#0B4F8A,#0E6BB8);display:flex;align-items:center;justify-content:center;font-size:1.7rem;color:#fff;">🖥️</div>
-      <h2>Console admin — Inventaire ONEP</h2>
-      <div class="sous">Vue <b>globale en temps réel</b> des saisies de tous les agents : fiches, projets,
-      mouvements, localisations et <b>état de l'inventaire physique</b> (retrouvés / disparus / taux de couverture).<br/>
-      Consultation, correction, suppression à distance · Export Excel (.xlsx) / CSV / JSON.</div>
+    <div class="login-brand">
+      <img class="emb" src="data:image/png;base64,{EMBLEM}" alt="Emblème ONEP" />
+      <div class="onep-ttl">ONEP</div>
+      <div class="onep-sub">OFFICE NATIONAL DE L'EAU POTABLE</div>
+      <div class="sep2"></div>
     </div>
+    <h2>Console d'administration</h2>
+    <div class="sous">Vue <b>globale en temps réel</b> des saisies de tous les agents : fiches immobilisations,
+      inventaire physique, projets, mouvements et localisations.<br/>Consultation, correction et suppression à distance · Export Excel / CSV / JSON.</div>
     <div class="field"><label>E-mail administrateur</label>
       <input type="text" id="liEmail" value="admin@inventaire-onep.local" autocomplete="username" /></div>
     <div class="field"><label>Mot de passe</label>
@@ -82,28 +227,43 @@
     <div class="field"><label>Confirmer (création du compte au 1er accès)</label>
       <input type="password" id="liPass2" placeholder="Identique au mot de passe" autocomplete="new-password" /></div>
     <div id="liMsg" class="err"></div>
-    <button class="btn btn-p" style="width:100%;justify-content:center;font-size:.92rem;padding:11px;" onclick="tenterConnexion()">🔐 Se connecter / Créer le compte admin</button>
-    <p class="petit" style="margin-top:12px;line-height:1.5;">
-      💡 <b>1er accès</b> : le compte <code>admin@inventaire-onep.local</code> + le mot de passe choisi sont créés
-      automatiquement et deviennent le compte administrateur de la base en ligne.
-    </p>
+    <button class="btn btn-p" style="width:100%;justify-content:center;font-size:.9rem;padding:12px;" onclick="tenterConnexion()">🔐 Se connecter / Créer le compte admin</button>
+    <p class="hint">💡 <b>1er accès</b> : le compte <code>admin@inventaire-onep.local</code> + le mot de passe choisi sont créés
+      automatiquement et deviennent le compte administrateur de la base en ligne.</p>
   </div>
 </div>
 
 <!-- ================= VUE PRINCIPALE ================= -->
 <div id="vMain" style="display:none;">
   <header>
-    <div>
-      <h1>🖥️ Inventaire ONEP — Console admin</h1>
-      <div class="sous">Mise à jour automatique en temps réel · relecture serveur via « 🔄 Rafraîchir » · <span id="hdrU"></span></div>
+    <span class="hdr-bulle b1"></span><span class="hdr-bulle b2"></span><span class="hdr-bulle b3"></span>
+    <div class="brand">
+      <img class="logo" src="data:image/png;base64,{LOGO_H}" alt="ONEP — Office National de l'Eau Potable" />
+      <span class="sep"></span>
+      <span>
+        <div class="t1">Console d'administration</div>
+        <div class="t2">Inventaire &amp; Patrimoine des immobilisations · vue globale temps réel</div>
+      </span>
     </div>
-    <div class="spacer"></div>
-    <span id="etatReseau" style="font-size:.78rem;"><span class="badge-on"></span>connecté</span>
-    <button class="btn btn-r" onclick="rafraichir()">🔄 Rafraîchir</button>
-    <button class="btn btn-d" onclick="seDeconnecter()">Déconnexion</button>
+    <div class="hdr-spacer"></div>
+    <span class="conn-pill" id="etatReseau"><span class="conn-dot"></span>connecté</span>
+    <div class="hdr-actions">
+      <button class="btn btn-r" onclick="rafraichir()">🔄 Rafraîchir</button>
+      <button class="btn btn-d" onclick="seDeconnecter()">Déconnexion</button>
+    </div>
+    <svg class="waves" viewBox="0 0 1440 40" preserveAspectRatio="none" aria-hidden="true"><path fill="#EAF3FB" fill-opacity="0.12" d="M0,24 C180,44 360,4 540,22 C720,40 900,6 1080,20 C1260,34 1380,12 1440,20 L1440,40 L0,40 Z"/><path fill="#FFFFFF" fill-opacity="0.08" d="M0,32 C240,12 480,44 720,28 C960,12 1200,38 1440,24 L1440,40 L0,40 Z"/></svg>
   </header>
 
   <div class="wrap">
+    <div class="intro">
+      <div>
+        <div class="it1">Tableau de bord — patrimoine en temps réel</div>
+        <div class="it2">Agrégation automatique de tous les postes d'agents · <span id="hdrU"></span></div>
+      </div>
+      <div class="spacer2"></div>
+      <span class="badge-live"><span class="ld"></span>Mise à jour automatique en direct</span>
+    </div>
+
     <div class="stats" id="stats"></div>
     <div id="devicesCard" class="carte" style="display:none;"></div>
     <div id="chipsZone"></div>
@@ -116,9 +276,9 @@
         <div class="onglet" data-c="mov">🔄 Mouvements</div>
         <div class="onglet" data-c="loc">📍 Localisations</div>
       </div>
-      <div id="sessionsInv" style="margin:4px 0 8px;"></div>
+      <div id="sessionsInv" style="margin:2px 0 8px;"></div>
       <div class="ligne">
-        <div style="flex:1;min-width:230px;"><input type="search" id="recherche" placeholder="🔎 Rechercher (code, désignation, détenteur, direction, agent, n° fiche…)" /></div>
+        <div style="flex:1;min-width:240px;"><input type="search" id="recherche" placeholder="🔎 Rechercher : code, désignation, détenteur, direction, service, agent, n° fiche…" /></div>
         <button class="btn btn-v" onclick="exporterXLSX()">⬇️ Excel (.xlsx)</button>
         <button class="btn btn-o" onclick="exporterCSV()">⬇️ CSV</button>
         <button class="btn btn-g" onclick="exportToutJSON()">🗂️ JSON complet</button>
@@ -127,20 +287,25 @@
         <thead id="thead"></thead>
         <tbody id="tbody"></tbody>
       </table></div>
-      <div class="note" style="margin-top:8px;" id="countRow"></div>
+      <div class="countRow" id="countRow"></div>
     </div>
+  </div>
+
+  <div class="footer">
+    <span><b>ONEP</b> — Office National de l'Eau Potable · Direction du Patrimoine · Côte d'Ivoire</span>
+    <span>Console v7.8 Pro · données chiffrées &amp; confidentielles</span>
   </div>
 </div>
 
-<!-- ================= MODAL ÉDITION ================= -->
+<!-- ================= MODALE ÉDITION ================= -->
 <div class="modal" id="modal">
   <div class="modal-box">
     <h3 id="modalTitre">✏️ Modification</h3>
     <div class="plaque" style="margin-bottom:10px;" id="modalMeta"></div>
-    <div style="font-size:.8rem;color:#33434F;margin-bottom:8px;" id="modalAide"></div>
+    <div style="font-size:.8rem;color:#3A5570;margin-bottom:8px;line-height:1.5;" id="modalAide"></div>
     <textarea id="jsonRec" rows="16" style="font-family:Consolas,monospace;font-size:.78rem;"></textarea>
     <div id="modalErr" class="err"></div>
-    <div class="ligne" style="margin-top:10px;">
+    <div class="ligne" style="margin-top:12px;">
       <button class="btn btn-p" onclick="sauverEdition()">💾 Enregistrer la correction</button>
       <button class="btn btn-d" onclick="supprimerRecord()">🗑️ Supprimer cet enregistrement</button>
       <button class="btn btn-r ml" onclick="fermerModal()">Annuler</button>

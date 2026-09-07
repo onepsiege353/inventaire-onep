@@ -808,6 +808,7 @@ input[type=file]{ padding:8px; font-size:.8rem; }
       <button class="tab active" onclick="switchFormTab('form-immob', this)">Ajouter / Modifier</button>
       <button class="tab" onclick="switchFormTab('form-localisation', this)">Étiquettes localisation</button>
       <button class="tab" onclick="switchFormTab('form-qrcode', this)">Générer QR Code</button>
+      <button class="tab" onclick="ouvrirToutesEtiquettes()" style="background:linear-gradient(135deg,#6a1b9a,#9c27b0);color:#fff;border-color:transparent;">🏷️ Toutes les étiquettes (938)</button>
     </div>
 
     <form id="form-immob" onsubmit="saveImmobilisation(event)">
@@ -1413,7 +1414,7 @@ input[type=file]{ padding:8px; font-size:.8rem; }
         <label for="etiSource">Source des biens</label>
         <select id="etiSource" onchange="etiGenerer()">
           <option value="fiches">Fiches créées (étiquettes auto)</option>
-          <option value="referentiel">Référentiel complet (BS- / ONEP-)</option>
+          <option value="referentiel" selected>Référentiel complet (BS- / ONEP-)</option>
           <option value="toutes">Toutes (fiches + référentiel)</option>
         </select>
       </div>
@@ -10008,6 +10009,45 @@ function generateRapportIA(){
     }
   },600);
 }
+
+</script>
+<script>
+
+function ouvrirToutesEtiquettes(){
+  showPanel('etiquettes');
+  var src=document.getElementById('etiSource');
+  if(src) src.value='referentiel';
+  var fmt=document.getElementById('etiFormat');
+  if(fmt) fmt.value='a4l-24';
+  var cont=document.getElementById('etiContenu');
+  if(cont) cont.value='qr-code';
+  if(typeof etiGenerer==='function') setTimeout(etiGenerer,100);
+  setTimeout(function(){
+    var info=document.getElementById('etiInfo');
+    if(info) info.scrollIntoView({behavior:'smooth',block:'start'});
+  },300);
+  showToast('Chargement des 938 étiquettes…','info');
+}
+// Auto-generate preview first time Etiquettes panel is opened, with referentiel by default
+(function(){
+  var _origShow = window.showPanel;
+  var _firstEti=true;
+  window.showPanel = function(id){
+    var r = _origShow.apply(this,arguments);
+    if(id==='etiquettes' && _firstEti){
+      _firstEti=false;
+      setTimeout(function(){
+        var src=document.getElementById('etiSource');
+        if(src && !src.dataset.userChanged) src.value='referentiel';
+        if(typeof etiGenerer==='function') etiGenerer();
+      },200);
+    }
+    return r;
+  };
+  document.addEventListener('change',function(e){
+    if(e.target && e.target.id==='etiSource') e.target.dataset.userChanged='1';
+  });
+})();
 
 </script>
 </html>

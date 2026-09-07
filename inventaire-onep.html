@@ -9906,4 +9906,108 @@ setTimeout(function(){
 },3000);
 
 </script>
+<script>
+
+function generateRapportIA(){
+  var zone=document.getElementById('rapportZone');
+  if(!zone){showToast('Zone de rapport introuvable','error');return;}
+  zone.innerHTML='<p style="text-align:center;color:var(--primary);font-weight:700;">🤖 Redaction automatique du rapport en cours…</p>';
+  setTimeout(function(){
+    try{
+      var imm=(typeof getData==='function') ? (getData('onep_immobilisations')||[]) : [];
+      var session={retrouves:{},disparus:{},agentsFusionnes:[]};
+      try{ session=JSON.parse(localStorage.getItem('onep_inventaire_session_v2')||'{}')||session; }catch(e){}
+      var retrouves=session.retrouves||{};
+      var disparus=session.disparus||{};
+      var totalAttendus=(typeof INV_ATTENDUS!=='undefined')?INV_ATTENDUS.length:0;
+      var nRet=Object.keys(retrouves).length;
+      var nDis=Object.keys(disparus).length;
+      var nNon=Math.max(0,totalAttendus-nRet-nDis);
+      var taux=totalAttendus?Math.round(nRet/totalAttendus*100):0;
+      var agents=(session.agentsFusionnes&&session.agentsFusionnes.length)?session.agentsFusionnes.join(', '):'—';
+      var dateJour=new Date().toLocaleDateString('fr-FR',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+      var valTotale=imm.reduce(function(s,i){return s+(Number(i.valeurActuelle)||0);},0);
+      var valRetrouvee=0,valDisparue=0;
+      Object.values(retrouves).forEach(function(r){valRetrouvee+=(Number(r.valeurBrute)||0);});
+      Object.values(disparus).forEach(function(r){valDisparue+=(Number(r.valeurBrute)||0);});
+      var etats={bon:0,deacutefectueux:0,abime:0,inutilisable:0};
+      // fix key 'défectueux'
+      etats['défectueux']=0; delete etats.deacutefectueux;
+      Object.values(retrouves).forEach(function(r){ if(r.etat==='défectueux')etats['défectueux']++; else if(etats.hasOwnProperty(r.etat)) etats[r.etat]++; else etats[r.etat]=0; });
+      var comptesDis={};
+      Object.values(disparus).forEach(function(r){var c=r.compte||'N/C';comptesDis[c]=(comptesDis[c]||0)+1;});
+      var topDis=Object.entries(comptesDis).sort(function(a,b){return b[1]-a[1];}).slice(0,5);
+      var listeDis=Object.keys(disparus).slice(0,20).join(', ');
+      var nbDef=(etats['défectueux']||0)+(etats.abime||0)+(etats.inutilisable||0);
+
+      var recommandations=[];
+      if(taux<50) recommandations.push('Poursuivre activement la campagne d\'inventaire : moins de la moitie des biens ont ete retrouves a ce jour.');
+      else if(taux<80) recommandations.push('Accelerer les derniers passages dans les directions restantes afin d\'atteindre 100% de couverture.');
+      else if(taux<100) recommandations.push('Finaliser les quelques localisations restantes ; l\'objectif est quasiment atteint.');
+      else recommandations.push('Inventaire 100% termine : proceder a l\'archivage et a la remise du rapport definitif.');
+      if(nDis>0) recommandations.push('Ouvrir une enquete sur les '+nDis+' biens signales disparus (conformement a la procedure de reforme / declaration de vol).');
+      if(nbDef>0) recommandations.push('Programmer les reparations / reformes pour les '+nbDef+' biens en etat degrade.');
+      if(!agents||agents==='—') recommandations.push('Chaque agent doit saisir son nom dans l\'onglet Inventaire pour la tracabilite.');
+
+      var h='';
+      h+='<div style="font-family:Georgia,serif;line-height:1.7;color:#1a2332;font-size:0.95rem;">';
+      h+='<h3 style="font-family:Segoe UI,sans-serif;color:var(--primary);border-bottom:3px solid var(--accent);padding-bottom:8px;">📊 Rapport automatique d\'inventaire — '+dateJour+'</h3>';
+      h+='<p><b>Redige automatiquement par l\'application ONEP Inventaire</b> a partir des donnees saisies par les agents.</p>';
+      h+='<h4 style="color:var(--primary-deep);margin-top:18px;">1. Resume executif</h4>';
+      h+='<p>Au <i>'+dateJour+'</i>, l\'inventaire physique du patrimoine ONEP porte sur un referentiel de <b>'+totalAttendus+' biens</b>';
+      if(imm.length) h+=' (auxquels s\'ajoutent '+imm.length+' fiches saisies dans l\'application)';
+      h+='. <b>'+nRet+' biens ('+taux+'%)</b> ont ete retrouves ; <b>'+nDis+'</b> signales disparus ; <b>'+nNon+'</b> restent a rechercher.</p>';
+      h+='<p>Agents participants : <b>'+escHtml(agents)+'</b>.</p>';
+
+      h+='<h4 style="color:var(--primary-deep);margin-top:18px;">2. Etat de la campagne</h4>';
+      h+='<table style="width:100%;border-collapse:collapse;margin:10px 0;font-family:Segoe UI,sans-serif;font-size:0.88rem;"><thead><tr style="background:#e0f4fa;">';
+      h+='<th style="padding:8px;text-align:left;">Indicateur</th><th style="padding:8px;text-align:right;">Valeur</th></tr></thead><tbody>';
+      h+='<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">Taux de couverture</td><td style="padding:8px;text-align:right;"><b style="color:'+(taux>=90?'#1b7a3f':(taux>=60?'#8a5a15':'#b71c1c'))+';">'+taux+'%</b></td></tr>';
+      h+='<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">Biens retrouves</td><td style="padding:8px;text-align:right;">'+nRet+'</td></tr>';
+      h+='<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">Biens disparus</td><td style="padding:8px;text-align:right;color:#b71c1c;">'+nDis+'</td></tr>';
+      h+='<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">Biens non repertories</td><td style="padding:8px;text-align:right;color:#8a5a15;">'+nNon+'</td></tr>';
+      h+='<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">Valeur retrouvee (brute)</td><td style="padding:8px;text-align:right;">'+new Intl.NumberFormat('fr-FR').format(Math.round(valRetrouvee))+' FCFA</td></tr>';
+      h+='<tr style="border-bottom:1px solid var(--border);"><td style="padding:8px;">Valeur disparue estimee</td><td style="padding:8px;text-align:right;color:#b71c1c;">'+new Intl.NumberFormat('fr-FR').format(Math.round(valDisparue))+' FCFA</td></tr>';
+      h+='<tr><td style="padding:8px;">Valeur nette globale (fiches)</td><td style="padding:8px;text-align:right;">'+new Intl.NumberFormat('fr-FR').format(Math.round(valTotale))+' FCFA</td></tr>';
+      h+='</tbody></table>';
+
+      if(nRet>0){
+        h+='<h4 style="color:var(--primary-deep);margin-top:18px;">3. Etat des biens retrouves</h4>';
+        h+='<p>Sur les '+nRet+' biens retrouves, les etats observes se repartissent comme suit :</p><ul>';
+        h+='<li>En bon etat : <b>'+(etats.bon||0)+'</b></li>';
+        h+='<li>Defectueux : <b>'+(etats['défectueux']||0)+'</b></li>';
+        h+='<li>Abimes / obsoletes : <b>'+(etats.abime||0)+'</b></li>';
+        h+='<li>Inutilisables : <b>'+(etats.inutilisable||0)+'</b></li>';
+        h+='</ul>';
+      }
+      if(nDis>0){
+        h+='<h4 style="color:var(--primary-deep);margin-top:18px;">4. Biens signales disparus</h4>';
+        h+='<p><b>'+nDis+' bien(s)</b> n\'ont pas ete retrouves sur leur emplacement attendu';
+        if(topDis.length){
+          h+='. Repartition par compte comptable :</p><ul>';
+          topDis.forEach(function(e){h+='<li>Compte <b>'+escHtml(e[0])+'</b> : '+e[1]+' bien(s)</li>';});
+          h+='</ul>';
+        }else h+='.</p>';
+        if(listeDis) h+='<p style="font-size:0.85rem;color:var(--text-muted);">Codes : '+escHtml(listeDis)+'…</p>';
+      }
+      h+='<h4 style="color:var(--primary-deep);margin-top:18px;">5. Recommandations</h4><ol>';
+      recommandations.forEach(function(r){h+='<li>'+escHtml(r)+'</li>';});
+      h+='<li>Appliquer la procedure de cloture d\'inventaire : rapprocher les ecarts avec la comptabilite, editer les PV de reforme et archiver les listes Excel.</li>';
+      h+='</ol>';
+      h+='<p style="margin-top:20px;font-size:0.8rem;color:var(--text-muted);font-style:italic;border-top:1px dashed var(--border);padding-top:10px;">Rapport genere automatiquement le '+new Date().toLocaleString('fr-FR')+' — Application ONEP Inventaire. Donnees issues directement des saisies agents et des sessions fusionnees. Exporter en PDF via Ctrl+P → Enregistrer en PDF.</p>';
+      h+='</div>';
+      zone.innerHTML=h;
+      showToast('Rapport automatique genere','success');
+      var actions=document.createElement('div');
+      actions.style.marginTop='12px';
+      actions.innerHTML='<button class="btn btn-primary" onclick="window.print()">🖨️ Imprimer / PDF</button> <button class="btn btn-secondary" onclick="if(typeof invExportExcel===\'function\')invExportExcel(\'global\'); else if(typeof exportExcelDashboard===\'function\')exportExcelDashboard();" style="margin-left:8px;">📥 Donnees completes (Excel)</button>';
+      zone.appendChild(actions);
+    }catch(err){
+      zone.innerHTML='<p style="color:#b71c1c;font-weight:700;">Erreur lors de la generation : '+err.message+'</p>';
+      showToast('Erreur rapport IA : '+err.message,'error');
+    }
+  },600);
+}
+
+</script>
 </html>

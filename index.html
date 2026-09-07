@@ -4743,7 +4743,22 @@ var qrcode = function() {
     const selBien = document.getElementById('selectBienProjet');
     if (selBien) {
       let html = '<option value="">Choisir un bien existant…</option>';
-      biens.forEach(b => { html += `<option value="${b.numeroFiche}">${b.numeroFiche} — ${b.nomImmobilisation}</option>`; });
+      // RENDER_PROJETS_PATCHED_V8
+      if (typeof INV_ATTENDUS !== 'undefined' && INV_ATTENDUS.length) {
+        html += '<optgroup label="── Referentiel officiel (' + INV_ATTENDUS.length + ' biens : BS-2026 + Plan amort. <300k) ──">';
+        var sorted = INV_ATTENDUS.slice().sort(function(a,b){return a.code<b.code?-1:(a.code>b.code?1:0);});
+        sorted.forEach(function(b){
+          var tag = b.source==='Fichier2026'?'[BS]':'[ONEP]';
+          var desc=(b.designationBrute||b.designation||'').substring(0,70);
+          html += '<option value="REF::'+b.code+'">'+tag+' '+b.code+' — '+desc.replace(/"/g,'&quot;')+' ('+(b.compte||'')+')</option>';
+        });
+        html += '</optgroup>';
+      }
+      if (biens.length) {
+        html += '<optgroup label="── Fiches creees dans l application ('+biens.length+') ──">';
+        biens.forEach(b => { html += '<option value="'+b.numeroFiche+'">[FICHE] '+b.numeroFiche+' — '+(b.nomImmobilisation||'').substring(0,60).replace(/"/g,'&quot;')+'</option>'; });
+        html += '</optgroup>';
+      }
       selBien.innerHTML = html;
     }
     
@@ -4756,16 +4771,17 @@ var qrcode = function() {
     }
   }
   function ajouterBienAuProjet() {
-    const bienFiche = document.getElementById('selectBienProjet').value;
+    const bienVal = document.getElementById('selectBienProjet').value;
     const projCode = document.getElementById('selectProjetAjout').value;
-    if (!bienFiche || !projCode) { showToast('Sélectionnez un bien et un projet', 'warning'); return; }
+    if (!bienVal || !projCode) { showToast('Sélectionnez un bien et un projet', 'warning'); return; }
     const projets = getData(STORAGE_KEYS.projets);
     const proj = projets.find(p => p.code === projCode);
     if (!proj) { showToast('Projet non trouvé', 'error'); return; }
-    if (proj.biens.includes(bienFiche)) { showToast('Ce bien est déjà affecté au projet', 'warning'); return; }
-    proj.biens.push(bienFiche);
+    if (proj.biens.includes(bienVal)) { showToast('Ce bien est déjà affecté au projet', 'warning'); return; }
+    proj.biens.push(bienVal);
     setData(STORAGE_KEYS.projets, projets);
-    showToast('Bien affecté au projet : ' + bienFiche, 'success');
+    var displayCode = bienVal.startsWith('REF::') ? bienVal.replace('REF::','') : bienVal;
+    showToast('Bien affecté au projet : ' + displayCode, 'success');
     renderProjets();
   }
 
@@ -4774,21 +4790,34 @@ var qrcode = function() {
     const proj = projets[idx];
     if (!proj) return;
     const biens = getData(STORAGE_KEYS.immobilisations);
-    const biensProj = biens.filter(b => proj.biens && proj.biens.includes(b.numeroFiche));
     const zone = document.getElementById('projetVisualisation');
     const tableZone = document.getElementById('projetVisualisationTable');
     zone.style.display = 'block';
     window.scrollTo({ top: zone.offsetTop - 80, behavior: 'smooth' });
-    if (!biensProj.length) {
+    if (!proj.biens || !proj.biens.length) {
       tableZone.innerHTML = '<p style="color:var(--text-muted);">Aucun bien affecté à ce projet.</p>';
       return;
     }
     let html = `<table style="width:100%; border-collapse:collapse; font-size:0.85rem;">
-      <thead><tr style="background:linear-gradient(135deg,#e0f4fa,#c2e7f3);"><th>N° fiche</th><th>Désignation</th><th>Direction</th><th>État</th><th>Valeur</th></tr></thead><tbody>`;
-    biensProj.forEach(b => {
-      html += `<tr style="border-bottom:1px solid var(--border);"><td>${b.numeroFiche}</td><td>${b.nomImmobilisation}</td><td>${b.directionAffectation}</td><td><span class="tag tag-${b.etat==='bon'?'green':b.etat==='défectueux'?'amber':'red'}">${b.etat}</span></td><td>${formatCurrency(b.valeurActuelle)}</td></tr>`;
+      <thead><tr style="background:linear-gradient(135deg,#e0f4fa,#c2e7f3);"><th>Code</th><th>Source</th><th>Désignation</th><th>Compte</th><th>État</th><th>Valeur</th></tr></thead><tbody>`;
+    proj.biens.forEach(function(codeBien){
+      if (codeBien && codeBien.startsWith('REF::')) {
+        var code = codeBien.replace('REF::','');
+        var ref = (typeof INV_ATTENDUS!=='undefined') ? INV_ATTENDUS.find(function(x){return x.code===code;}) : null;
+        if (ref) {
+          var srcTag = ref.source==='Fichier2026' ? 'BS-2026' : 'ONEP-<300k';
+          html += '<tr style="border-bottom:1px solid var(--border);"><td><b>'+ref.code+'</b></td><td><span class="tag tag-amber">'+srcTag+'</span></td><td>'+(ref.designationBrute||ref.designation).substring(0,80)+'</td><td>'+(ref.compte||'—')+'</td><td><span class="tag tag-blue">Référentiel</span></td><td>'+fmtMoney(ref.valeurBrute)+'</td></tr>';
+          return;
+        }
+      }
+      var b = biens.find(function(x){return x.numeroFiche===codeBien;});
+      if (b) {
+        html += '<tr style="border-bottom:1px solid var(--border);"><td>'+b.numeroFiche+'</td><td><span class="tag tag-blue">Fiche</span></td><td>'+b.nomImmobilisation+'</td><td>'+(b.numeroCompte||'—')+'</td><td><span class="tag tag-'+(b.etat==='bon'?'green':b.etat==='défectueux'?'amber':'red')+'">'+b.etat+'</span></td><td>'+formatCurrency(b.valeurActuelle)+'</td></tr>';
+      } else {
+        html += '<tr><td>'+codeBien+'</td><td colspan="5" style="color:var(--text-muted);">Bien non trouvé</td></tr>';
+      }
     });
-    html += `</tbody></table>`;
+    html += '</tbody></table>';
     tableZone.innerHTML = html;
   }
 
@@ -4796,15 +4825,27 @@ var qrcode = function() {
     document.getElementById('projetVisualisation').style.display = 'none';
   }
 
+  function _projetToRows(p){
+    var rows=[];
+    (p.biens||[]).forEach(function(codeBien){
+      if (codeBien && codeBien.startsWith('REF::')){
+        var code=codeBien.replace('REF::','');
+        var ref=(typeof INV_ATTENDUS!=='undefined')?INV_ATTENDUS.find(function(x){return x.code===code;}):null;
+        if(ref) rows.push({'Code bien':ref.code,'Source':ref.source==='Fichier2026'?'Fichier 2026 (BS-)':'Plan amortissement (ONEP-)','Désignation':ref.designationBrute||ref.designation,'N° Compte':ref.compte,'Valeur brute (FCFA)':ref.valeurBrute,'VNC (FCFA)':ref.vnc,'Date mise en service':ref.dateMiseEnService,'Détenteur':ref.detenteur||''});
+      } else {
+        var b=getData(STORAGE_KEYS.immobilisations).find(function(x){return x.numeroFiche===codeBien;});
+        if(b) rows.push({'Code bien':b.numeroFiche,'Source':'Fiche application','Désignation':b.nomImmobilisation,'N° Compte':b.numeroCompte,'Direction':b.directionAffectation,'État':b.etat,'Valeur actuelle (FCFA)':b.valeurActuelle});
+      }
+    });
+    return rows;
+  }
   function exportProjetExcel() {
     const projets = getData(STORAGE_KEYS.projets);
-    
-
     const wb = XLSX.utils.book_new();
     projets.forEach(p => {
-      const biens = getData(STORAGE_KEYS.immobilisations).filter(b => p.biens && p.biens.includes(b.numeroFiche));
-      if (biens.length) {
-        const ws = XLSX.utils.json_to_sheet(biens);
+      const rows = _projetToRows(p);
+      if (rows.length) {
+        const ws = XLSX.utils.json_to_sheet(rows);
         XLSX.utils.book_append_sheet(wb, ws, p.code.substring(0,30));
       }
     });
@@ -4822,9 +4863,10 @@ var qrcode = function() {
     projets.forEach(p => {
       doc.setFont('helvetica', 'bold'); doc.text(p.nom + ' (' + p.code + ')', 20, y); y += 6;
       doc.setFont('helvetica', 'normal');
-      const biens = getData(STORAGE_KEYS.immobilisations).filter(b => p.biens && p.biens.includes(b.numeroFiche));
-      biens.forEach(b => {
-        doc.text('  • ' + b.numeroFiche + ' — ' + b.nomImmobilisation + ' — ' + b.etat + ' — ' + formatCurrency(b.valeurActuelle), 25, y); y += 5;
+      _projetToRows(p).forEach(function(r){
+        var line = '  • ' + r['Code bien'] + ' — ' + String(r['Désignation']||'').substring(0,60) + ' — ' + (r['État']||'Référentiel') + ' — ' + String(r['Valeur brute (FCFA)']||r['Valeur actuelle (FCFA)']||'');
+        doc.text(line, 25, y); y += 5;
+        if (y > 280) { doc.addPage(); y = 20; }
       });
       y += 4;
     });

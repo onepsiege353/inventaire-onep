@@ -160,6 +160,10 @@
   .etat-group label { display:inline-flex; align-items:center; gap:6px; background:var(--surface-alt); padding:6px 12px; border-radius:8px; border:1px solid var(--border); font-size:0.85rem; cursor:pointer; font-weight:600; text-transform:none; margin:0; letter-spacing:0; color:var(--text); }
   .etat-group input[type=radio] { margin:0; width:auto; }
 
+
+/* Masquer les volets Plan amortissement et Concilier (demande utilisateur) */
+#nav-planamort, #nav-conciliation { display: none !important; }
+
 </style>
 <style>
 /* ============================================================
@@ -1389,6 +1393,7 @@ input[type=file]{ padding:8px; font-size:.8rem; }
       <button class="btn btn-secondary" onclick="generateRapport('mouvements')">📄 Mouvements</button>
       <button class="btn btn-secondary" onclick="generateRapport('reformes')">📄 Réformes</button>
       <button class="btn btn-secondary" onclick="generateRapport('cloture')">📄 Clôture inventaire</button>
+      <button class="btn" style="background:linear-gradient(135deg,#6a1b9a,#9c27b0);color:#fff;font-weight:700;" onclick="generateRapportIA()">🤖 Rapport IA automatique (fin d'inventaire)</button>
     </div>
     <div id="rapportZone" style="margin-top: 14px; padding: 16px; background: var(--surface-alt); border-radius: 10px; border: 1px dashed var(--border); color: var(--text-muted); font-size: 0.9rem; min-height: 80px;">
       Sélectionnez un rapport ci-dessus pour le générer instantanément (PDF / Excel).
@@ -8555,6 +8560,31 @@ function onepInitLogin(){
   scr.style.display='flex';
   setTimeout(function(){var fu=document.getElementById('loginUser');if(fu)fu.focus();},400);
 }
+
+function onepSyncUsers(){
+  try{
+    var u=onepGetUsers();
+    if(typeof dbSet==='function'){
+      dbSet('/_app/users', u).catch(function(){});
+    }
+  }catch(e){}
+}
+function onepPullUsers(cb){
+  try{
+    if(typeof dbRef==='function' && window.firebase && window.firebase.database){
+      dbRef('/_app/users').once('value').then(function(s){
+        var v=s.val();
+        if(Array.isArray(v) && v.length){
+          try{ localStorage.setItem(ONEP_USERS_KEY, JSON.stringify(v)); }catch(e){}
+          if(cb) cb(v);
+        } else { if(cb) cb(null); }
+      }, function(){ if(cb) cb(null); });
+      return;
+    }
+  }catch(e){}
+  if(cb) cb(null);
+}
+
 function onepAjouterUser(e){
   if(e&&e.preventDefault)e.preventDefault();
   var login=(document.getElementById('nu_login').value||'').trim();
@@ -8568,6 +8598,7 @@ function onepAjouterUser(e){
   onepSaveUsers(u);onepRenderUsers();
   auditer('parametres','Utilisateur ajoute : '+login+' ('+nom+', '+role+')');
   showToast('Utilisateur ajoute : '+login,'success');
+  onepSyncUsers();
   document.getElementById('nu_login').value='';document.getElementById('nu_nom').value='';document.getElementById('nu_pass').value='';
 }
 function onepSupprimerUser(login){
@@ -8581,6 +8612,7 @@ function onepSupprimerUser(login){
   onepSaveUsers(u.filter(function(x){return x.login!==login;}));onepRenderUsers();
   auditer('parametres','Utilisateur supprime : '+login);
   showToast('Utilisateur supprime : '+login,'warning');
+  onepSyncUsers();
 }
 function onepChangerPass(login){
   var u=onepGetUsers(),t=null,i;
@@ -8592,6 +8624,7 @@ function onepChangerPass(login){
   t.pass=p;onepSaveUsers(u);onepRenderUsers();
   auditer('parametres','Mot de passe modifie : '+login);
   showToast('Mot de passe modifie pour '+login,'success');
+  onepSyncUsers();
 }
 function onepRenderUsers(){
   var tb=document.getElementById('tbodyUsers');if(!tb)return;

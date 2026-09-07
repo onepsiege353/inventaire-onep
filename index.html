@@ -1553,7 +1553,16 @@ input[type=file]{ padding:8px; font-size:.8rem; }
       </div>
       <button class="btn btn-primary" type="submit">➕ Ajouter l'utilisateur</button>
     </form>
-    <div class="table-wrap">
+    
+      <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0 14px;">
+        <button class="btn btn-secondary" type="button" onclick="onepExportComptes()">📤 Exporter la liste des comptes (.json)</button>
+        <label style="display:inline-flex; align-items:center; gap:6px; background:#fff3e0; padding:8px 14px; border-radius:10px; border:1px solid #ffcc80; font-size:0.82rem; font-weight:700; color:#8a5a15; cursor:pointer;">
+          <input type="file" id="impComptesFichier" accept=".json" style="display:none;" onchange="onepImporterComptes(this)" />
+          <span onclick="document.getElementById('impComptesFichier').click()">📥 Importer des comptes (.json)</span>
+        </label>
+        <span style="font-size:.78rem;color:var(--text-muted);align-self:center;">💡 Utile si les téléphones n'ont pas internet pour récupérer les comptes.</span>
+      </div>
+<div class="table-wrap">
       <table>
         <thead><tr><th>Identifiant</th><th>Nom complet</th><th>Rôle</th><th>Actions</th></tr></thead>
         <tbody id="tbodyUsers"></tbody>
@@ -9730,6 +9739,171 @@ document.addEventListener('DOMContentLoaded',function(){
     }
   }, 120);
 })();
+
+</script>
+<script>
+
+function onepExportComptes(){
+  var u=onepGetUsers();
+  var blob=new Blob([JSON.stringify({exportAt:new Date().toISOString(),users:u},null,2)],{type:'application/json'});
+  var url=URL.createObjectURL(blob);
+  var a=document.createElement('a');
+  a.href=url;
+  a.download='comptes_onep_'+new Date().toISOString().split('T')[0]+'.json';
+  document.body.appendChild(a);a.click();document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+  showToast('Liste des comptes exportee (a transmettre aux agents)','success');
+}
+function onepImporterComptes(input){
+  if(!input.files||!input.files.length)return;
+  var f=input.files[0];
+  var reader=new FileReader();
+  reader.onload=function(e){
+    try{
+      var d=JSON.parse(e.target.result);
+      var nouveaux=d.users||d;
+      if(!Array.isArray(nouveaux)){showToast('Format de fichier invalide','error');return;}
+      var actuels=onepGetUsers();
+      var ajoutes=0, fusionnes=0;
+      nouveaux.forEach(function(nu){
+        if(!nu.login||!nu.pass)return;
+        var ex=actuels.find(function(x){return x.login===nu.login;});
+        if(ex){Object.assign(ex,nu);fusionnes++;}
+        else{actuels.push(nu);ajoutes++;}
+      });
+      onepSaveUsers(actuels);onepRenderUsers();onepSyncUsers();
+      showToast('Comptes importes : '+ajoutes+' ajoutes, '+fusionnes+' mis a jour','success');
+    }catch(err){showToast('Erreur de lecture : '+err.message,'error');}
+    input.value='';
+  };
+  reader.readAsText(f);
+}
+
+function onepCloudPut(path,val){
+  return new Promise(function(resolve,reject){
+    function tryRest(){
+      try{
+        if(typeof idTokenP==='function'){
+          idTokenP().then(function(tok){
+            if(!tok){reject(new Error('pas de token'));return;}
+            var base=(typeof dbBase==='function')?dbBase():'https://inventaire-onep-default-rtdb.europe-west1.firebasedatabase.app';
+            fetch(base+path+'.json?auth='+encodeURIComponent(tok),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(val)})
+              .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+              .then(resolve,reject);
+          },reject);
+          return;
+        }
+      }catch(e){reject(e);}
+    }
+    try{ if(typeof dbSet==='function') dbSet(path,val).catch(function(){}); }catch(e){}
+    tryRest();
+  });
+}
+function onepCloudGet(path){
+  return new Promise(function(resolve,reject){
+    function tryRest(){
+      try{
+        if(typeof idTokenP==='function'){
+          idTokenP().then(function(tok){
+            if(!tok){reject(new Error('pas de token'));return;}
+            var base=(typeof dbBase==='function')?dbBase():'https://inventaire-onep-default-rtdb.europe-west1.firebasedatabase.app';
+            fetch(base+path+'.json?auth='+encodeURIComponent(tok))
+              .then(function(r){if(!r.ok)throw new Error('HTTP '+r.status);return r.json();})
+              .then(resolve,reject);
+          },reject);
+          return;
+        }
+      }catch(e){reject(e);}
+    }
+    tryRest();
+  });
+}
+
+window._onepSyncUsersOrig = window.onepSyncUsers;
+window.onepSyncUsers = function(){
+  try{
+    var u=onepGetUsers();
+    onepCloudPut('/_app/users', u).catch(function(){});
+    if(window._onepSyncUsersOrig)try{window._onepSyncUsersOrig();}catch(e){}
+    try{ if(window.firebase && window.firebase.database && window.firebase.auth() && window.firebase.auth().currentUser){
+      window.firebase.database().ref('/_app/users').set(u);
+    }}catch(e){}
+  }catch(e){}
+};
+
+window._onepPullUsersOrig = window.onepPullUsers;
+window.onepPullUsers = function(cb){
+  var attempts=0;
+  function attempt(){
+    attempts++;
+    onepCloudGet('/_app/users').then(function(v){
+      if(Array.isArray(v) && v.length){
+        var locaux=onepGetUsers();
+        var map={};locaux.forEach(function(u){map[u.login]=u;});
+        v.forEach(function(su){map[su.login]=su;});
+        var fusion=Object.keys(map).map(function(k){return map[k];});
+        try{ localStorage.setItem(ONEP_USERS_KEY, JSON.stringify(fusion)); }catch(e){}
+        if(cb) cb(fusion);
+      } else {
+        if(attempts<10){setTimeout(attempt,800);}else{
+          if(window._onepPullUsersOrig) try{window._onepPullUsersOrig(cb);return;}catch(e){}
+          if(cb)cb(null);
+        }
+      }
+    }).catch(function(){
+      if(attempts<10){setTimeout(attempt,800);}else{
+        if(window._onepPullUsersOrig) try{window._onepPullUsersOrig(cb);return;}catch(e){}
+        if(cb)cb(null);
+      }
+    });
+  }
+  attempt();
+};
+
+window._onepLoginOrig = window.onepLogin;
+window.onepLogin = function(login,pass,remember){
+  login=(login||'').trim();
+  var ok = window._onepLoginOrig(login,pass,remember);
+  if(ok) return true;
+  // Login failed: try to pull from cloud repeatedly, then retry
+  var attempts=0;
+  function retryAfterPull(){
+    attempts++;
+    onepPullUsers(function(remoteUsers){
+      var u=onepFindUser(login);
+      if(u && u.pass===pass){
+        window._onepLoginOrig(login,pass,remember);
+        showToast('Connexion reussie (comptes synchronises depuis le cloud)','success');
+        return;
+      }
+      if(attempts<8){setTimeout(retryAfterPull,700);}
+      else{
+        var err=document.getElementById('loginError');
+        if(err){err.textContent='Identifiant ou mot de passe incorrect. Si le compte a ete cree recemment, verifiez votre connexion internet OU importez le fichier .json des comptes fourni par l administrateur (bouton ci-dessous).';err.classList.add('show');}
+      }
+    });
+  }
+  retryAfterPull();
+  return false;
+};
+
+function onepAutoPullCloud(){
+  try{
+    onepPullUsers(function(remote){
+      if(remote && remote.length){
+        onepRenderUsers();
+        showToast('Liste des comptes synchronisee ('+remote.length+' comptes)','info');
+      }
+    });
+  }catch(e){}
+}
+setTimeout(onepAutoPullCloud, 2500);
+setTimeout(onepAutoPullCloud, 6000);
+setTimeout(onepAutoPullCloud, 12000);
+
+setTimeout(function(){
+  try{ if(onepIsAdmin && onepIsAdmin()) onepSyncUsers(); }catch(e){}
+},3000);
 
 </script>
 </html>

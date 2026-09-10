@@ -828,7 +828,7 @@ input[type=file]{ padding:8px; font-size:.8rem; }
         </div>
         <div>
           <label for="f_direction">Direction d'affectation</label>
-          <select id="f_direction" required>
+          <select id="f_direction" required onchange="updateServicesForDirection('f_service', this.value)">
             <option value="">Choisir…</option>
             <option>Direction générale</option>
             <option>Direction Générale adjointe</option>
@@ -959,7 +959,7 @@ input[type=file]{ padding:8px; font-size:.8rem; }
       <div class="grid-2">
         <div>
           <label for="loc_direction">Direction concernée</label>
-          <select id="loc_direction" required><option value="">Choisir…</option>
+          <select id="loc_direction" required onchange="updateServicesForDirection('loc_service', this.value)"><option value="">Choisir…</option>
             <option>Direction générale</option>
             <option>Direction Générale adjointe</option>
             <option>Présidence du conseil d'administration</option>
@@ -1663,7 +1663,8 @@ const SERVICES_PAR_DIRECTION = {
   "Présidence du conseil d'administration": ["Secrétariat du PCA"],
   "Direction de l'audit et de la Qualité": ["Service Audit Interne", "Service Management de la Qualité", "Laboratoire d'Analyses et du Contrôle de la Qualité de l'Eau", "Service Analyses Physico-chimiques", "Service Microbiologique"],
   "Direction des Affaires Juridiques et du Contentieux": ["Service Contrats et Contentieux", "Service Acquisition foncière et réglementation"],
-  "Direction Financière et Comptable": ["Service Financier", "Service Comptabilité", "Service Engagement et Mobilisation des financements", "Département du budget, du contrôle de Gestion et du système d'information"],
+  "Direction Financière et Comptable": ["Service Financier", "Service Comptabilité", "Service Engagement et Mobilisation des financements"],
+  "Département du budget, du contrôle de Gestion et du système d'information": ["Service informatique", "Service courrier et archives", "Service communication et relations publiques", "Service représentation régionnale, suivi et evaluation des projets"],
   "Direction des Ressources Humaines": ["Service Développement des Carrières et des Compétences", "Service Administration et Paie", "Service Social et Sécurité au travail"],
   "Direction de la logistique des Approvisionnements et des Marchés": ["Service Logistique et Achats", "Service Marchés", "Service Intendance"],
   "Direction des Etudes, de la Planification et du développement": ["Service Etudes", "Service Planification", "Service Responsabilité Sociale et Environnementale", "Service Mobilisation Sociale des Projets"],
@@ -5927,6 +5928,7 @@ const DATA_FICHIER_2026 = ONEP_DATA.d1;
     document.getElementById('f_numero').value = nextNum;
     document.getElementById('f_type').value = 'immobilisation';
     document.getElementById('f_direction').value = '';
+    updateServicesForDirection('f_service', '');
     
 
     const parts = it.designation.split('/');
@@ -6225,7 +6227,7 @@ const DATA_FICHIER_2026 = ONEP_DATA.d1;
   }
 
 </script>
-<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a38ece49dbb1b7b7',t:'MTc4OTA0NzIyMA=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a38f375829c6b7b3',t:'MTc4OTA1MTUyMw=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
 <script>
 
 
@@ -6441,7 +6443,7 @@ function editImmobilisation(idx){
   editerIndex = idx;
   const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = (v == null ? '' : v); };
   set('f_numero', item.numeroFiche);        set('f_type', item.typeFiche);
-  set('f_direction', item.directionAffectation); set('f_service', item.service);
+  set('f_direction', item.directionAffectation); updateServicesForDirection('f_service', item.directionAffectation); set('f_service', item.service);
   set('f_code', item.numeroCompte || item.codeImmobilisation || ''); set('f_nature', item.nature || '');
   set('f_nom', item.nomImmobilisation);     set('f_valeur', item.valeurEntree);
   set('f_date_acq', item.dateAcquisition);  set('f_date_service', item.dateMiseEnService);

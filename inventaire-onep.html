@@ -824,6 +824,7 @@ input[type=file]{ padding:8px; font-size:.8rem; }
         <div>
           <label for="f_direction">Direction d'affectation</label>
           <select id="f_direction" required>
+            
             <option value="">Choisir…</option>
             <option>Direction générale</option>
             <option>Direction Générale adjointe</option>
@@ -839,13 +840,16 @@ input[type=file]{ padding:8px; font-size:.8rem; }
             <option>Direction du contrôle de l'Exploitation et du Patrimoine</option>
             <option>Laboratoire d'analyse et du contrôle de la qualité de l'eau</option>
             <option>Département du budget, du contrôle de Gestion et du système d'information</option>
-            <option>Communication et relations publiques</option>
-            <option>Représentation régionale, Suivi et Évaluation des projets</option>
+            <option value="__AUTRE__">Autre (préciser)…</option>
           </select>
+          <input type="text" id="f_direction_autre" class="hidden" placeholder="Précisez la direction d'affectation…" style="margin-top:6px;" />
         </div>
         <div>
           <label for="f_service">Service / Bureau</label>
-          <input type="text" id="f_service" required placeholder="Ex. Service Logistique" />
+          <select id="f_service" required>
+            <option value="">Choisir la direction d'abord…</option>
+          </select>
+          <input type="text" id="f_service_autre" class="hidden" placeholder="Précisez le service / bureau…" style="margin-top:6px;" />
         </div>
       </div>
 
@@ -953,6 +957,8 @@ input[type=file]{ padding:8px; font-size:.8rem; }
         <div>
           <label for="loc_direction">Direction concernée</label>
           <select id="loc_direction" required><option value="">Choisir…</option>
+            
+            <option value="">Choisir…</option>
             <option>Direction générale</option>
             <option>Direction Générale adjointe</option>
             <option>Présidence du conseil d'administration</option>
@@ -967,13 +973,16 @@ input[type=file]{ padding:8px; font-size:.8rem; }
             <option>Direction du contrôle de l'Exploitation et du Patrimoine</option>
             <option>Laboratoire d'analyse et du contrôle de la qualité de l'eau</option>
             <option>Département du budget, du contrôle de Gestion et du système d'information</option>
-            <option>Communication et relations publiques</option>
-            <option>Représentation régionale, Suivi et Évaluation des projets</option>
+            <option value="__AUTRE__">Autre (préciser)…</option>
           </select>
+          <input type="text" id="loc_direction_autre" class="hidden" placeholder="Précisez la direction concernée…" style="margin-top:6px;" />
         </div>
         <div>
           <label for="loc_service">Service / Bureau / Site</label>
-          <input type="text" id="loc_service" required placeholder="Ex. Bureau Abidjan Sud" />
+          <select id="loc_service" required>
+            <option value="">Choisir la direction d'abord…</option>
+          </select>
+          <input type="text" id="loc_service_autre" class="hidden" placeholder="Précisez le service / bureau / site…" style="margin-top:6px;" />
         </div>
         <div>
           <label for="loc_code">Code de localisation (auto)</label>
@@ -6129,7 +6138,7 @@ const DATA_FICHIER_2026 = ONEP_DATA.d1;
 
 const CFG_KEY   = 'onep_config_v2';
 const AUDIT_KEY = 'onep_audit_v2';
-const VERSION_APP = '7.8 Pro';
+const VERSION_APP = '7.9 Pro';
 const CFG_DEFAUT = {
   org: "ONEP — Office National de l'Eau Potable",
   sousTitre: "Application de gestion des immobilisations · Cahier des charges 2026",
@@ -6249,7 +6258,7 @@ function saveImmobilisation(e){
   const data = getData(STORAGE_KEYS.immobilisations);
   const numeroFiche = document.getElementById('f_numero').value.trim();
   if (!numeroFiche) { showToast('Le numéro de fiche est obligatoire', 'warning'); return; }
-  const existIdx = data.findIndex(d => d.numeroFiche === numeroFiche);
+  const existIdx = data.findIndex(d => d && d.numeroFiche === numeroFiche);
   if (editerIndex < 0 && existIdx >= 0) { showToast('❌ Ce numéro de fiche existe déjà — utilisez ✏️ Modifier pour le mettre à jour.', 'warning'); return; }
 
   const typeFiche = document.getElementById('f_type').value;
@@ -9696,6 +9705,305 @@ document.addEventListener('DOMContentLoaded',function(){
       };
     }
   }, 120);
+})();
+
+</script>
+<script>
+// ============================================================
+//  ONEP — Organigramme officiel (source : « Organigramme ONEP_VF
+//  I 04 oct 2023.pdf ») : Direction → Services rattachés.
+//  Alimente les listes déroulantes en cascade du formulaire
+//  d'immobilisation (f_direction → f_service) et du formulaire
+//  de localisation (loc_direction → loc_service).
+// ============================================================
+
+var ONEP_ORGANIGRAMME = {
+  version: '2023-10-04',
+  directions: [
+    { n: 'Direction générale', s: [] },
+    { n: 'Direction Générale adjointe', s: [] },
+    { n: "Présidence du conseil d'administration", s: [] },
+    { n: "Direction de l'audit et de la Qualité", s: [
+      'Service Audit Interne',
+      'Service Management de la Qualité'
+    ] },
+    { n: 'Direction des Affaires Juridiques et du Contentieux', s: [
+      'Service Acquisition foncière et réglementation',
+      'Service Contrats et Contentieux'
+    ] },
+    { n: 'Direction Financière et Comptable', s: [
+      'Service Financier',
+      'Service Comptabilité',
+      'Service Engagement et Mobilisation des financements'
+    ] },
+    { n: 'Direction des Ressources Humaines', s: [
+      'Service Administration et Paie',
+      'Service Développement des Carrières et des Compétences',
+      'Service Social et Sécurité au travail'
+    ] },
+    { n: 'Direction de la logistique des Approvisionnements et des Marchés', s: [
+      'Service Logistique et Achats',
+      'Service Marchés',
+      'Service Intendance'
+    ] },
+    { n: 'Direction des Etudes, de la Planification et du développement', s: [
+      'Service Etudes',
+      'Service Planification',
+      'Service Responsabilité Sociale et Environnementale'
+    ] },
+    { n: 'Direction de la Mobilisation et de la Protection des Ressources en Eau', s: [
+      'Service Prospection et Mobilisation des Ressources en Eau',
+      'Service Gestion et Evaluation des Ressources en Eau',
+      'Service Protection des Ressources en Eau',
+      'Service Mobilisation Sociale des Projets'
+    ] },
+    { n: 'Direction des projets', s: [
+      'Service Travaux en milieu Rural',
+      'Service Travaux neufs',
+      'Service Travaux de réhabilitation',
+      'Service Travaux structurants'
+    ] },
+    { n: "Direction du contrôle de l'Exploitation et du Patrimoine", s: [
+      'Service Suivi et Gestion du Patrimoine',
+      'Service Contrôle Technique',
+      "Service Economie de l'Eau",
+      'Service des Infrastructures Sociales',
+      "Service Contrôle de l'affermage"
+    ] },
+    { n: "Laboratoire d'analyse et du contrôle de la qualité de l'eau", s: [
+      'Service Commercial et Approvisionnement',
+      'Service Analyses Physico-chimiques',
+      'Service Microbiologique'
+    ] },
+    { n: "Département du budget, du contrôle de Gestion et du système d'information", s: [
+      'Service Informatique',
+      'Service Courrier et Archives',
+      'Service Communication et Relations publiques',
+      'Service Représentation régionale, Suivi et Evaluation des Projets'
+    ] }
+  ]
+};
+
+var ONEP_AUTRE = '__AUTRE__';   // option « Autre (préciser)… » du select direction
+var ONEP_LIBRE = '__LIBRE__';   // option « saisie libre » du select service
+
+function onpNorm(t) {
+  return String(t == null ? '' : t).toLowerCase().replace(/[’']/g, "'")
+    .replace(/\s+/g, ' ').trim();
+}
+
+// Retourne la liste officielle des services d'une direction, ou null si
+// la direction est inconnue de l'organigramme ([] = direction sans service).
+window.ONEP_servicesPourDirection = function (d) {
+  var cible = onpNorm(d);
+  if (!cible) return null;
+  var dirs = ONEP_ORGANIGRAMME.directions;
+  for (var i = 0; i < dirs.length; i++) if (onpNorm(dirs[i].n) === cible) return dirs[i].s.slice();
+  // correspondance partielle tolérante (anciens libellés saisis avant la cascade)
+  for (var j = 0; j < dirs.length; j++) {
+    var a = onpNorm(dirs[j].n);
+    if (a.length > 10 && (cible.indexOf(a) === 0 || a.indexOf(cible) === 0)) return dirs[j].s.slice();
+  }
+  return null;
+};
+
+// Prépare un <select> service à partir de la direction choisie.
+// États : vide (direction non choisie) / liste officielle / saisie libre
+// (direction sans service rattaché, direction « Autre… » ou inconnue).
+window.ONEP_refreshServices = function (dirSel, servSel, servAutreId) {
+  if (!dirSel || !servSel) return;
+  var d = dirSel.value;
+  var autre = servAutreId ? document.getElementById(servAutreId) : null;
+  var liste = (d && d !== ONEP_AUTRE) ? window.ONEP_servicesPourDirection(d) : null;
+  servSel.innerHTML = '';
+  servSel.disabled = false;
+  if (autre) { autre.value = autre.value || ''; }
+  if (!d) {
+    servSel.disabled = true;
+    var o0 = new Option("Choisir la direction d'abord…", '');
+    o0.disabled = true; o0.selected = true;
+    servSel.add(o0);
+    if (autre) autre.classList.add('hidden');
+    return;
+  }
+  if (d === ONEP_AUTRE || liste === null || (liste && liste.length === 0)) {
+    // saisie libre obligatoire (préciser dans le champ sous la liste)
+    var oL = new Option('✍️ Saisie libre — précisez ci-dessous', ONEP_LIBRE);
+    oL.selected = true;
+    servSel.add(oL);
+    if (autre) autre.classList.remove('hidden');
+    return;
+  }
+  var oP = new Option('Choisir un service / bureau…', '');
+  oP.disabled = true; oP.selected = true;
+  servSel.add(oP);
+  for (var i = 0; i < liste.length; i++) servSel.add(new Option(liste[i], liste[i]));
+  if (autre) autre.classList.add('hidden');
+};
+
+// Recherche tolérante d'une option (casse / espaces / apostrophes).
+function onpOptParValeur(sel, val) {
+  var cible = onpNorm(val);
+  if (!cible) return null;
+  var opts = Array.prototype.slice.call(sel.options || []);
+  for (var i = 0; i < opts.length; i++) if (onpNorm(opts[i].value) === cible) return opts[i].value;
+  return null;
+}
+
+// Restaure (direction, service) d'un enregistrement existant dans les
+// listes en cascade — tolérant aux anciens libellés et à la casse.
+window.ONEP_restoreCascade = function (dirSel, dirAutreId, servSel, servAutreId, direction, service) {
+  direction = String(direction || ''); service = String(service || '');
+  var dirAutre = dirAutreId ? document.getElementById(dirAutreId) : null;
+  var servAutre = servAutreId ? document.getElementById(servAutreId) : null;
+  // 1. direction
+  var hitD = onpOptParValeur(dirSel, direction);
+  if (direction && hitD) {
+    dirSel.value = hitD;
+  } else if (direction) {
+    dirSel.value = ONEP_AUTRE;
+    if (dirAutre) { dirAutre.value = direction; dirAutre.classList.remove('hidden'); }
+  }
+  // 2. services en fonction de la direction retenue
+  window.ONEP_refreshServices(dirSel, servSel, servAutreId);
+  if (!service) return;
+  var hitS = onpOptParValeur(servSel, service);
+  if (hitS) {
+    servSel.value = hitS;
+  } else if (servSel.value === ONEP_LIBRE) {
+    if (servAutre) servAutre.value = service;
+  } else if (servSel.options.length && !servSel.options[0].disabled) {
+    servSel.add(new Option(service, service), 0);
+    servSel.value = service;
+  } else {
+    servSel.add(new Option(service, service));
+    servSel.value = service;
+  }
+};
+
+// Résout (direction, service) avant sauvegarde SANS toucher au DOM.
+// Retourne { dir, serv } ou null si une précision obligatoire manque
+// (dans ce cas l'enregistrement doit être bloqué).
+window.ONEP_resolveCascade = function (dirSelId, dirAutreId, servSelId, servAutreId, libelle) {
+  var dirSel = document.getElementById(dirSelId);
+  var servSel = document.getElementById(servSelId);
+  var dirAutre = document.getElementById(dirAutreId);
+  var servAutre = document.getElementById(servAutreId);
+  var dirVal = dirSel ? dirSel.value : '';
+  var servVal = servSel ? servSel.value : '';
+  if (dirVal === ONEP_AUTRE) {
+    var t = dirAutre ? dirAutre.value.trim() : '';
+    if (!t) {
+      alert('Précisez la direction d\u2019affectation de ' + (libelle || 'ce bien') + '.');
+      if (dirAutre) dirAutre.focus();
+      return null;
+    }
+    dirVal = t;
+  }
+  if (servVal === ONEP_LIBRE || servVal === ONEP_AUTRE) {
+    var t2 = servAutre ? servAutre.value.trim() : '';
+    if (!t2) {
+      alert('Précisez le service / bureau de ' + (libelle || 'ce bien') + '.');
+      if (servAutre) servAutre.focus();
+      return null;
+    }
+    servVal = t2;
+  }
+  return { dir: dirVal, serv: servVal };
+};
+
+// Pendant la sauvegarde d'origine, on présente aux fonctions existantes
+// (qui lisent select.value) une select temporaire portant la valeur
+// résolue, puis on restaure immédiatement les options officielles.
+function onpMarquer(sel, val) {
+  if (!sel || sel.value === val) return null;
+  var prev = sel.innerHTML;
+  while (sel.options.length) sel.remove(0);
+  sel.add(new Option(val, val));
+  sel.value = val;
+  return prev;
+}
+function onpRestaurer(sel, prev) {
+  if (!sel || prev === null) return;
+  sel.innerHTML = prev;
+}
+function onpWrapSave(orig, dirId, dirAutreId, servId, servAutreId, libelle) {
+  return function (ev) {
+    var dirSel = document.getElementById(dirId);
+    var servSel = document.getElementById(servId);
+    var res = window.ONEP_resolveCascade(dirId, dirAutreId, servId, servAutreId, libelle);
+    if (res === null) {
+      if (ev && ev.preventDefault) ev.preventDefault();
+      return false;
+    }
+    var m1 = onpMarquer(dirSel, res.dir);
+    var m2 = onpMarquer(servSel, res.serv);
+    try { return orig.apply(this, arguments); }
+    finally { onpRestaurer(dirSel, m1); onpRestaurer(servSel, m2); }
+  };
+}
+
+// ============================================================
+//  Câblage des deux formulaires (immobilisation + localisation)
+// ============================================================
+(function () {
+  function prep(formId, dirId, dirAutreId, servId, servAutreId, libelle) {
+    var form = document.getElementById(formId);
+    var dirSel = document.getElementById(dirId);
+    var servSel = document.getElementById(servId);
+    if (!dirSel || !servSel) return;
+    window.ONEP_refreshServices(dirSel, servSel, servAutreId);
+    dirSel.addEventListener('change', function () {
+      var sa = document.getElementById(servAutreId);
+      if (sa) sa.value = '';
+      var da = document.getElementById(dirAutreId);
+      if (da) {
+        if (dirSel.value === ONEP_AUTRE) da.classList.remove('hidden');
+        else { da.value = ''; da.classList.add('hidden'); }
+      }
+      window.ONEP_refreshServices(dirSel, servSel, servAutreId);
+    });
+    if (form) form.addEventListener('reset', function () {
+      setTimeout(function () {
+        var da = document.getElementById(dirAutreId), sa = document.getElementById(servAutreId);
+        if (da) { da.value = ''; da.classList.add('hidden'); }
+        if (sa) { sa.value = ''; sa.classList.add('hidden'); }
+        window.ONEP_refreshServices(dirSel, servSel, servAutreId);
+      }, 0);
+    });
+  }
+
+  prep('form-immob', 'f_direction', 'f_direction_autre', 'f_service', 'f_service_autre', 'la fiche');
+
+  prep('form-localisation', 'loc_direction', 'loc_direction_autre', 'loc_service', 'loc_service_autre', 'la localisation');
+
+  // Sauvegardes : résolution des modes libres avant traitement d'origine
+  if (typeof window.saveImmobilisation === 'function') {
+    var _saveImm = window.saveImmobilisation;
+    window.saveImmobilisation = onpWrapSave(_saveImm, 'f_direction', 'f_direction_autre', 'f_service', 'f_service_autre', 'la fiche');
+  }
+  if (typeof window.saveLocalisation === 'function') {
+    var _saveLoc = window.saveLocalisation;
+    window.saveLocalisation = onpWrapSave(_saveLoc, 'loc_direction', 'loc_direction_autre', 'loc_service', 'loc_service_autre', 'la localisation');
+  }
+
+  // Édition d'une immobilisation existante : restauration en cascade
+  if (typeof window.editImmobilisation === 'function' && typeof getData === 'function' && typeof STORAGE_KEYS !== 'undefined') {
+    var _edit = window.editImmobilisation;
+    window.editImmobilisation = function (idx) {
+      _edit(idx);
+      try {
+        var data = getData(STORAGE_KEYS.immobilisations);
+        var it = data && data[idx];
+        if (!it) return;
+        window.ONEP_restoreCascade(
+          document.getElementById('f_direction'), 'f_direction_autre',
+          document.getElementById('f_service'), 'f_service_autre',
+          it.directionAffectation, it.service
+        );
+      } catch (e) { /* ne jamais casser l'édition */ }
+    };
+  }
 })();
 
 </script>

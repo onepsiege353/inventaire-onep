@@ -416,12 +416,37 @@ var INV_COLS = [
   { k: 'statut', label: 'Statut' },
   { k: 'agents', label: 'Agent(s)' },
   { k: 'localisation', label: 'Localisation' },
+  { k: 'bureau', label: 'Bureau (après passation)' },
   { k: 'detenteur', label: 'Détenteur' },
   { k: 'date', label: 'Date relevé' },
   { k: 'observation', label: 'Observation' },
   { k: 'valeurBrute', label: 'Valeur brute', num: true },
   { k: 'vnc', label: 'VNC', num: true }
 ];
+
+/* ---------- Passations de biens (mouvements « Passation » des agents) ----------
+   Dernier mouvement de passation par code → bureau / détenteur actuels du bien. */
+var PAS_MOV = {};   // code -> { bureau, detenteur, date, motif }
+function collecterPassations(){
+  PAS_MOV = {};
+  for (var uid in dataAgents){
+    var a = dataAgents[uid];
+    if (!a || !a.mov) continue;
+    for (var id in a.mov){
+      var ent = a.mov[id];
+      if (!ent || !ent.rec) continue;
+      var r = ent.rec;
+      if (String(r.type) !== 'Passation' || !r.fiche) continue;
+      var det = '';
+      var m = String(r.commentaire || '').match(/D[ée]tenteur\s*:\s*([^·|]+)/i);
+      if (m) det = m[1].trim();
+      var prev = PAS_MOV[r.fiche];
+      var t1 = (ent.m && ent.m.t) || 0;
+      if (!prev || t1 >= prev._t) PAS_MOV[r.fiche] = { bureau: r.destination || '', detenteur: det, date: String(r.date || ''), motif: r.commentaire || '', _t: t1 };
+    }
+  }
+  return PAS_MOV;
+}
 
 var dataAgents = {};   // uid -> { about, imm, proj, mov, loc, inv }
 /* Registre des suppressions admin : tant que le poste de l'agent n'a pas
@@ -566,6 +591,7 @@ function fmtNum(n){ return (typeof n === 'number' && isFinite(n)) ? n.toLocaleSt
    AGRÉGATION — Inventaire physique (tous les postes)
    ============================================================ */
 function collecterInv(){
+  collecterPassations();
   var sessions = [];          // {uid, m, doc}
   var ret = {};               // code -> {data:.., ts:.., agents:[], locs:[], uids:[]}
   var dis = {};               // code -> idem (retrouvé prime)
@@ -612,7 +638,8 @@ function collecterInv(){
       statut: statut,
       agents: (agents || []).join(', '),
       localisation: (locs || []).join(', '),
-      detenteur: (en && en.detenteur) || ref.detenteur || '',
+      bureau: (PAS_MOV[code] && PAS_MOV[code].bureau) || ref.service || '',
+      detenteur: (en && en.detenteur) || (PAS_MOV[code] && PAS_MOV[code].detenteur) || ref.detenteur || '',
       date: (en && en.date) || dateStr || '',
       etat: (en && en.etat) || '',
       observation: (en && en.observation) || '',
@@ -767,7 +794,7 @@ function rendu(){
     var rows = invAgg.rows.filter(function(r){
       if (statutInv !== 'tous' && r.statut !== statutInv) return false;
       if (!q) return true;
-      return (r.code + ' ' + r.designation + ' ' + r.compte + ' ' + r.agents + ' ' + r.localisation + ' ' + r.detenteur + ' ' + r.famille).toLowerCase().indexOf(q) !== -1;
+      return (r.code + ' ' + r.designation + ' ' + r.compte + ' ' + r.agents + ' ' + r.localisation + ' ' + r.bureau + ' ' + r.detenteur + ' ' + r.famille).toLowerCase().indexOf(q) !== -1;
     });
     var th = '<tr>' + INV_COLS.map(function(c){ return '<th>' + c.label + '</th>'; }).join('') + '</tr>';
     $('thead').innerHTML = th;
@@ -784,6 +811,7 @@ function rendu(){
         '<td>' + badge + (r.etat ? ' <span class="petit">(' + ech(r.etat) + ')</span>' : '') + '</td>' +
         '<td>' + ech(r.agents) + '</td>' +
         '<td>' + ech(r.localisation) + '</td>' +
+        '<td>' + ech(r.bureau) + (PAS_MOV[r.code] ? ' <span class="petit" title="' + ech(PAS_MOV[r.code].date) + ' — ' + ech(PAS_MOV[r.code].motif) + '">🔄</span>' : '') + '</td>' +
         '<td>' + ech(r.detenteur) + '</td>' +
         '<td class="petit">' + ech(r.date) + '</td>' +
         '<td class="petit">' + ech(r.observation) + '</td>' +
@@ -932,9 +960,9 @@ function exporterCSV(){
   var sep = ';', lines = [];
   if (codeActif === 'inv'){
     var rows = lignesCourantes();
-    lines.push(['code', 'designation', 'compte', 'famille', 'statut', 'agent(s)', 'localisation', 'detenteur', 'date', 'etat', 'observation', 'valeur_brute_FCFA', 'vnc_FCFA'].join(sep));
+    lines.push(['code', 'designation', 'compte', 'famille', 'statut', 'agent(s)', 'localisation', 'bureau', 'detenteur', 'date', 'etat', 'observation', 'valeur_brute_FCFA', 'vnc_FCFA'].join(sep));
     rows.forEach(function(r){
-      lines.push([r.code, r.designation, r.compte, r.famille, statutLabel(r.statut), r.agents, r.localisation, r.detenteur, r.date, r.etat, r.observation, r.valeurBrute, r.vnc].join(sep));
+      lines.push([r.code, r.designation, r.compte, r.famille, statutLabel(r.statut), r.agents, r.localisation, r.bureau, r.detenteur, r.date, r.etat, r.observation, r.valeurBrute, r.vnc].join(sep));
     });
   } else {
     var col = COLONNES[codeActif];
@@ -982,15 +1010,15 @@ function exporterXLSX(){
       if (statutInv !== 'tous' && r.statut !== statutInv) return false;
       var q = ($('recherche').value || '').toLowerCase();
       if (!q) return true;
-      return (r.code + ' ' + r.designation + ' ' + r.agents + ' ' + r.localisation + ' ' + r.detenteur).toLowerCase().indexOf(q) !== -1;
+      return (r.code + ' ' + r.designation + ' ' + r.agents + ' ' + r.localisation + ' ' + r.bureau + ' ' + r.detenteur).toLowerCase().indexOf(q) !== -1;
     });
-    var head = ['Code du bien', 'Désignation', 'Compte', 'Famille', 'Statut', 'Agent(s)', 'Localisation', 'Détenteur', 'Date relevé', 'État', 'Observation', 'Valeur brute (FCFA)', 'VNC (FCFA)'];
+    var head = ['Code du bien', 'Désignation', 'Compte', 'Famille', 'Statut', 'Agent(s)', 'Localisation', 'Bureau (après passation)', 'Détenteur', 'Date relevé', 'État', 'Observation', 'Valeur brute (FCFA)', 'VNC (FCFA)'];
     var body = [head];
     rows.forEach(function(r){
-      body.push([r.code, r.designation, r.compte, r.famille, statutLabel(r.statut), r.agents, r.localisation, r.detenteur, r.date, r.etat, r.observation, r.valeurBrute, r.vnc]);
+      body.push([r.code, r.designation, r.compte, r.famille, statutLabel(r.statut), r.agents, r.localisation, r.bureau, r.detenteur, r.date, r.etat, r.observation, r.valeurBrute, r.vnc]);
     });
     var ws2 = XLSX.utils.aoa_to_sheet(body);
-    ws2['!cols'] = [{ wch: 15 }, { wch: 45 }, { wch: 10 }, { wch: 14 }, { wch: 16 }, { wch: 20 }, { wch: 22 }, { wch: 20 }, { wch: 14 }, { wch: 12 }, { wch: 30 }, { wch: 14 }, { wch: 12 }];
+    ws2['!cols'] = [{ wch: 15 }, { wch: 45 }, { wch: 10 }, { wch: 14 }, { wch: 16 }, { wch: 20 }, { wch: 22 }, { wch: 24 }, { wch: 20 }, { wch: 14 }, { wch: 12 }, { wch: 30 }, { wch: 14 }, { wch: 12 }];
     XLSX.utils.book_append_sheet(wb, ws2, 'Détail des biens');
     var feuille = 'detail';
     XLSX.writeFile(wb, 'inventaire-onep-inventaire-physique.xlsx');

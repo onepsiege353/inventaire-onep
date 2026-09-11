@@ -754,6 +754,7 @@ input[type=file]{ padding:8px; font-size:.8rem; }
       <a href="#" onclick="showPanel('fichier2026'); return false;" id="nav-fichier2026">📂 Fichier 2026</a>
       <a href="#" onclick="showPanel('planamort'); return false;" id="nav-planamort">📉 Plan amort.</a>
       <a href="#" onclick="showPanel('conciliation'); return false;" id="nav-conciliation">🔗 Concilier</a>
+      <a href="#" onclick="showPanel('passation'); return false;" id="nav-passation">🔄 Passation</a>
       <a href="#" onclick="showPanel('etiquettes'); return false;" id="nav-etiquettes">🏷️ Étiquettes</a>
       <a href="#" onclick="showPanel('audit'); return false;" id="nav-audit">🕵️ Audit</a>
       <a href="#" onclick="showPanel('parametres'); return false;" id="nav-parametres">⚙️ Paramètres</a>
@@ -1582,7 +1583,7 @@ input[type=file]{ padding:8px; font-size:.8rem; }
     <div id="onepSyncPanel" style="background:#F2F9F3;border:1px solid #CDEAD5;border-radius:12px;padding:14px 16px;">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <span style="font-size:1.05rem;font-weight:800;color:#14532D;">🌐 Synchronisation en ligne (temps réel)</span>
-        <span style="font-size:.78rem;background:#14532D;color:#fff;border-radius:20px;padding:2px 9px;">7.8 Pro</span>
+        <span style="font-size:.78rem;background:#14532D;color:#fff;border-radius:20px;padding:2px 9px;">7.10 Pro</span>
       </div>
       <p style="font-size:.84rem;color:#3F6B4F;margin:8px 0 10px;line-height:1.6;">
         Chaque appareil d'agent envoie <b>automatiquement</b> ses fiches, projets, mouvements et
@@ -1614,6 +1615,74 @@ input[type=file]{ padding:8px; font-size:.8rem; }
       <div id="onepSyncLog" style="margin-top:8px;max-height:130px;overflow:auto;background:#fff;border:1px solid #E3E9EE;border-radius:9px;padding:8px 10px;font-family:monospace;font-size:.76rem;color:#334;"></div>
     </div>
     </div>
+  </section>
+
+  <!-- ==================== PASSATION DE BUREAU ==================== -->
+  <section class="card hidden" id="panel-passation">
+    <h2><span class="icon">🔄</span> Passation de biens (bureau → bureau)</h2>
+    <p class="panel-meta">
+      Les biens d'un bureau dont le responsable est parti (ex. ancien DG) sont transférés
+      <b>en une seule opération</b> vers un autre bureau (ex. chez le PCA) : sélection par
+      <b>bureau / service</b>, mise à jour permanente du référentiel et des fiches, mouvement
+      « Passation » enregistré pour chaque bien (remonté à la console) et
+      <b>PV de passation PDF</b> avec cases de signature.
+    </p>
+
+    <div class="grid-2">
+      <div class="field">
+        <label for="pasSource">Bureau / service d'origine</label>
+        <select id="pasSource" onchange="pasCharger()"><option value="">— Tous les bureaux (recherche libre) —</option></select>
+      </div>
+      <div class="field">
+        <label for="pasRecherche">Ou recherche libre (code, désignation, détenteur, compte)</label>
+        <input type="text" id="pasRecherche" placeholder="Ex. BS-0019, PCA, KOUAKOU…" oninput="pasCharger()" />
+      </div>
+    </div>
+
+    <div style="display:flex;gap:9px;flex-wrap:wrap;align-items:center;margin:10px 0 6px;">
+      <button class="btn btn-primary" onclick="pasCharger()">🔎 Afficher les biens</button>
+      <button class="btn btn-secondary" onclick="pasToutCocher(true)">✔️ Tout cocher</button>
+      <button class="btn btn-secondary" onclick="pasToutCocher(false)">☐ Tout décocher</button>
+      <span id="pasInfo" style="font-size:.84rem;color:var(--text-muted);"></span>
+    </div>
+    <div id="pasListeWrap"></div>
+
+    <hr class="divider" />
+    <h3 style="margin:0 0 8px;font-size:1rem;">Destination</h3>
+    <div class="grid-2">
+      <div class="field">
+        <label for="pasDestBureau">Nouveau bureau / service</label>
+        <input type="text" id="pasDestBureau" list="pasBureaux" placeholder="Ex. Présidence du Conseil d'Administration" />
+        <datalist id="pasBureaux"></datalist>
+      </div>
+      <div class="field">
+        <label for="pasDestDetenteur">Nouveau détenteur (facultatif)</label>
+        <input type="text" id="pasDestDetenteur" placeholder="Ex. M. le Président du Conseil d'Administration" />
+      </div>
+      <div class="field">
+        <label for="pasMotif">Motif</label>
+        <select id="pasMotif">
+          <option>Passation de service</option>
+          <option>Départ de l'agent</option>
+          <option>Mutation</option>
+          <option>Réorganisation</option>
+          <option>Autre</option>
+        </select>
+      </div>
+      <div class="field">
+        <label for="pasDate">Date de la passation</label>
+        <input type="date" id="pasDate" />
+      </div>
+      <div class="field" style="grid-column:1/-1;">
+        <label for="pasComment">Commentaire (facultatif)</label>
+        <input type="text" id="pasComment" placeholder="Ex. PV de passation de service entre la DG et la PCA du…" />
+      </div>
+    </div>
+    <button class="btn btn-primary" onclick="pasValider()">🔄 Effectuer la passation (+ PV PDF)</button>
+
+    <hr class="divider" />
+    <h3 style="margin:0 0 8px;font-size:1rem;">Historique des passations de ce poste</h3>
+    <div id="pasHist"></div>
   </section>
 
 </main>
@@ -5215,6 +5284,7 @@ const DATA_FICHIER_2026 = ONEP_DATA.d1;
 
   const INV_KEY = 'onep_inventaire_session_v2';
   const INV_ATTENDUS = onepBuildReferentiel(ONEP_DATA.d1, ONEP_DATA.d2);
+try{window.__INV_ATTENDUS_REF=INV_ATTENDUS;}catch(e){}
   let invDernierBienTrouve = null; 
 
   let invSession = {
@@ -6138,7 +6208,7 @@ const DATA_FICHIER_2026 = ONEP_DATA.d1;
 
 const CFG_KEY   = 'onep_config_v2';
 const AUDIT_KEY = 'onep_audit_v2';
-const VERSION_APP = '7.9 Pro';
+const VERSION_APP = '7.10 Pro';
 const CFG_DEFAUT = {
   org: "ONEP — Office National de l'Eau Potable",
   sousTitre: "Application de gestion des immobilisations · Cahier des charges 2026",
@@ -6170,7 +6240,7 @@ function auditer(type, detail){
 
 
 window.showPanel = function(id){
-  const KEYS = ['dashboard','immobilisations','fichier2026','planamort','conciliation','inventaire','projets','mouvements','rapports','etiquettes','audit','parametres'];
+  const KEYS = ['dashboard','immobilisations','fichier2026','planamort','conciliation','inventaire','projets','mouvements','rapports','etiquettes','audit','parametres','passation'];
   if (id === 'parametres' && typeof onepIsAdmin === 'function' && !onepIsAdmin()) {
     showToast('Accès réservé aux administrateurs', 'warning');
     return;
@@ -6183,6 +6253,7 @@ window.showPanel = function(id){
   const n = document.getElementById('nav-'+id);   if (n) n.classList.add('active');
   if (id==='inventaire') setTimeout(()=>{ const f=document.getElementById('invScanCode'); if(f) f.focus(); },200);
   if (id==='etiquettes') etiGenerer();
+  if (id==='passation' && typeof pasInit==='function') pasInit();
   if (id==='audit') renderAudit();
   if (id==='dashboard') { setTimeout(buildCharts, 60); if (typeof onepHeroUpdate==='function') setTimeout(onepHeroUpdate, 30); }
   window.scrollTo({ top:0, behavior:'smooth' });
@@ -7006,6 +7077,313 @@ document.addEventListener('DOMContentLoaded', function(){
     }
   } catch(e){}
 });
+
+</script>
+<script>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+var PAS_KEY  = 'onep_passations_v1';       
+
+var PAS_HIST = 'onep_passations_hist_v1';  
+
+var PAS_VUE  = [];                         
+
+var PAS_PV   = null;                       
+
+
+function pasOverlay(){ try { return JSON.parse(localStorage.getItem(PAS_KEY)) || {}; } catch(e){ return {}; } }
+function pasSaveOverlay(o){ try { localStorage.setItem(PAS_KEY, JSON.stringify(o)); } catch(e){} }
+function pasHisto(){ try { return JSON.parse(localStorage.getItem(PAS_HIST)) || []; } catch(e){ return []; } }
+function pasSaveHisto(h){ try { localStorage.setItem(PAS_HIST, JSON.stringify(h.slice(0, 200))); } catch(e){} }
+
+
+
+function pasAppliquer(liste) {
+  var ov = pasOverlay(), n = 0;
+  var ref = liste || (typeof window.__INV_ATTENDUS_REF !== 'undefined' ? window.__INV_ATTENDUS_REF : null) || [];
+  ref.forEach(function (b) {
+    var m = ov[b.code];
+    if (m) { if (m.b) b.service = m.b; if (m.d) b.detenteur = m.d; n++; }
+  });
+  return n;
+}
+window.ONEP_passationsAppliquer = pasAppliquer;
+
+
+
+function pasBureauxConnus() {
+  var set = {}, out = [];
+  function add(v) { v = String(v || '').trim(); if (!v) return; var k = v.toLowerCase(); if (!set[k]) { set[k] = 1; out.push(v); } }
+  (typeof window.__INV_ATTENDUS_REF !== 'undefined' && window.__INV_ATTENDUS_REF || []).forEach(function (b) { add(b.service); });
+  try { getData(STORAGE_KEYS.immobilisations).forEach(function (r) { add(r.service); }); } catch (e) {}
+  if (window.ONEP_ORGANIGRAMME) window.ONEP_ORGANIGRAMME.directions.forEach(function (d) { (d.s || []).forEach(add); });
+  return out.sort(function (a, b) { return a.localeCompare(b); });
+}
+
+function pasInit() {
+  var sel = document.getElementById('pasSource');
+  if (!sel) return;
+  
+
+  var cmp = {};
+  (typeof window.__INV_ATTENDUS_REF !== 'undefined' && window.__INV_ATTENDUS_REF || []).forEach(function (b) {
+    var k = String(b.service || '').trim(); cmp[k] = (cmp[k] || 0) + 1;
+  });
+  var sans = cmp[''] || 0;
+  var opts = '<option value="">— Tous les bureaux (recherche libre) —</option>';
+  Object.keys(cmp).filter(function (k) { return k; }).sort(function (a, b) { return a.localeCompare(b); }).forEach(function (k) {
+    opts += '<option value="' + escHtml(k) + '">' + escHtml(k) + ' (' + cmp[k] + ')</option>';
+  });
+  if (sans) opts += '<option value="__SANS__">(biens sans bureau) (' + sans + ')</option>';
+  sel.innerHTML = opts;
+  var dl = document.getElementById('pasBureaux');
+  if (dl) dl.innerHTML = pasBureauxConnus().map(function (b) { return '<option value="' + escHtml(b) + '"></option>'; }).join('');
+  var d = document.getElementById('pasDate');
+  if (d && !d.value) d.value = new Date().toISOString().split('T')[0];
+  pasAppliquer();
+  pasRendreHist();
+}
+
+function pasListeBiens() {
+  var sel = document.getElementById('pasSource');
+  var src = sel ? sel.value : '';
+  var qEl = document.getElementById('pasRecherche');
+  var q = qEl ? (qEl.value || '').toLowerCase().trim() : '';
+  var out = [], vu = {};
+  (typeof window.__INV_ATTENDUS_REF !== 'undefined' && window.__INV_ATTENDUS_REF || []).forEach(function (b) {
+    var bur = String(b.service || '').trim();
+    if (src === '__SANS__') { if (bur) return; }
+    else if (src && bur !== src) return;
+    if (q && (b.code + ' ' + (b.designationBrute || b.designation || '') + ' ' + (b.detenteur || '') + ' ' + bur + ' ' + (b.compte || '')).toLowerCase().indexOf(q) < 0) return;
+    out.push({ code: b.code, designation: b.designationBrute || b.designation || '', bureau: bur, detenteur: b.detenteur || '', valeur: b.valeurBrute || 0, vnc: b.vnc || 0, compte: b.compte || '' });
+    vu[b.code] = 1;
+  });
+  try {
+    getData(STORAGE_KEYS.immobilisations).forEach(function (r) {
+      var code = r.numeroIdentification || r.codeImmobilisation || r.numeroFiche;
+      if (!code || vu[code]) return;
+      var bur = String(r.service || '').trim();
+      if (src === '__SANS__') { if (bur) return; }
+      else if (src && bur !== src) return;
+      if (q && ((r.numeroFiche || '') + ' ' + code + ' ' + (r.nomImmobilisation || '') + ' ' + (r.nomDetenteur || '') + ' ' + bur).toLowerCase().indexOf(q) < 0) return;
+      out.push({ code: code, designation: r.nomImmobilisation || r.numeroFiche || '', bureau: bur, detenteur: r.nomDetenteur || '', valeur: r.valeurEntree || 0, vnc: r.valeurActuelle || 0, compte: r.numeroCompte || '', fiche: r.numeroFiche });
+    });
+  } catch (e) {}
+  return out;
+}
+
+function pasVue() {
+  var wrap = document.getElementById('pasListeWrap');
+  if (!wrap) return;
+  PAS_VUE = pasListeBiens();
+  var info = document.getElementById('pasInfo');
+  if (!PAS_VUE.length) {
+    wrap.innerHTML = '<p style="color:var(--text-muted);padding:14px 4px;">Aucun bien pour ce filtre. Choisissez un autre bureau ou effacez la recherche.</p>';
+    if (info) info.textContent = '';
+    return;
+  }
+  var h = '<div class="table-wrap" style="max-height:46vh;"><table><thead><tr>' +
+    '<th style="width:34px;"></th><th>Code</th><th>Désignation</th><th>Bureau actuel</th><th>Détenteur actuel</th><th>Compte</th><th style="text-align:right;">Valeur brute</th></tr></thead><tbody>';
+  PAS_VUE.forEach(function (b, i) {
+    h += '<tr><td><input type="checkbox" class="pasCk" id="pasCk' + i + '" value="' + escHtml(b.code) + '" onchange="pasCompter()" /></td>' +
+      '<td><b>' + escHtml(b.code) + '</b></td><td>' + escHtml(String(b.designation).substring(0, 70)) + '</td>' +
+      '<td>' + escHtml(b.bureau || '—') + '</td><td>' + escHtml(b.detenteur || '—') + '</td>' +
+      '<td>' + escHtml(b.compte || '—') + '</td><td style="text-align:right;">' + fmtMoney(b.valeur) + '</td></tr>';
+  });
+  h += '</tbody></table></div>';
+  wrap.innerHTML = h;
+  pasCompter();
+}
+
+function pasCompter() {
+  var cks = document.querySelectorAll('.pasCk:checked');
+  var n = cks.length, tot = 0;
+  Array.prototype.forEach.call(cks, function (c) {
+    var b = PAS_VUE.filter(function (x) { return x.code === c.value; })[0];
+    if (b) tot += (b.valeur || 0);
+  });
+  var info = document.getElementById('pasInfo');
+  if (info) info.innerHTML = n ? '<b>' + n + '</b> bien(s) sélectionné(s) · valeur brute totale : <b>' + fmtMoney(tot) + '</b>' : 'Cochez les biens à transférer.';
+}
+
+function pasToutCocher(etat) {
+  document.querySelectorAll('.pasCk').forEach(function (c) { c.checked = etat; });
+  pasCompter();
+}
+
+function pasCharger() { pasVue(); }
+
+function pasValider() {
+  var dest = (document.getElementById('pasDestBureau').value || '').trim();
+  var det = (document.getElementById('pasDestDetenteur').value || '').trim();
+  var motif = document.getElementById('pasMotif').value;
+  var date = document.getElementById('pasDate').value || new Date().toISOString().split('T')[0];
+  var comment = (document.getElementById('pasComment').value || '').trim();
+  var cks = Array.prototype.slice.call(document.querySelectorAll('.pasCk:checked'));
+  if (!cks.length) { showToast('Cochez au moins un bien à transférer', 'warning'); return; }
+  if (!dest && !det) { showToast('Indiquez le nouveau bureau et/ou le nouveau détenteur', 'warning'); return; }
+  var codes = cks.map(function (c) { return c.value; });
+  if (!confirm('Passation de ' + codes.length + ' bien(s) → « ' + (dest || '(bureau inchangé)') + ' »' + (det ? ' · détenteur : ' + det : '') + ' ?')) return;
+  var srcSel = document.getElementById('pasSource');
+  var origine = srcSel && srcSel.value ? (srcSel.value === '__SANS__' ? '(sans bureau)' : srcSel.value) : '(tous bureaux)';
+
+  
+
+  var ov = pasOverlay(), mv = getData(STORAGE_KEYS.mouvements);
+  codes.forEach(function (code) {
+    ov[code] = { b: dest, d: det, date: date, motif: motif, o: origine };
+    mv.push({
+      date: date, type: 'Passation', fiche: code,
+      origine: origine, destination: dest || '(bureau inchangé)',
+      commentaire: motif + (det ? ' · Détenteur : ' + det : '') + (comment ? ' · ' + comment : '')
+    });
+  });
+  pasSaveOverlay(ov); setData(STORAGE_KEYS.mouvements, mv);
+
+  
+
+  var nFiches = 0, imm = getData(STORAGE_KEYS.immobilisations);
+  imm.forEach(function (r) {
+    var code = r.numeroIdentification || r.codeImmobilisation;
+    if (code && codes.indexOf(code) >= 0) { if (dest) r.service = dest; if (det) r.nomDetenteur = det; nFiches++; }
+  });
+  if (nFiches) setData(STORAGE_KEYS.immobilisations, imm);
+
+  var nRef = pasAppliquer();
+
+  
+
+  var biens = codes.map(function (code) {
+    var b = PAS_VUE.filter(function (x) { return x.code === code; })[0] || {};
+    return { code: code, designation: b.designation || '', compte: b.compte || '', o: b.bureau || origine, valeur: b.valeur || 0, vnc: b.vnc || 0 };
+  });
+  PAS_PV = { date: date, motif: motif, origine: origine, dest: dest, det: det, comment: comment, biens: biens };
+  var hist = pasHisto();
+  hist.unshift({ date: date, n: codes.length, origine: origine, dest: dest, det: det, motif: motif, codes: codes.slice(0, 500) });
+  pasSaveHisto(hist);
+
+  try { if (typeof renderMouvements === 'function') renderMouvements(); } catch (e) {}
+  try { if (typeof renderImmobilisations === 'function') renderImmobilisations(); } catch (e) {}
+  try { if (typeof invRenderAll === 'function') invRenderAll(); } catch (e) {}
+  try { if (typeof auditer === 'function') auditer('passation', '🔄 Passation : ' + codes.length + ' bien(s) de « ' + origine + ' » vers « ' + (dest || '(bureau inchangé)') + ' »' + (det ? ' (détenteur : ' + det + ')' : '')); } catch (e) {}
+  try { pasRendreHist(); } catch (e) {}
+  pasVue();
+  showToast('✅ Passation enregistrée : ' + codes.length + ' bien(s)' + (nFiches ? ' · ' + nFiches + ' fiche(s) mise(s) à jour' : '') + (nRef ? ' · référentiel mis à jour' : ''), 'success');
+  try { pasPV(PAS_PV); } catch (e) {  }
+}
+
+function pasRejouer(idx) {
+  var h = pasHisto()[idx];
+  if (!h) return;
+  var biens = h.codes.map(function (code) { return { code: code, designation: '', o: h.origine }; });
+  pasPV({ date: h.date, motif: h.motif, origine: h.origine, dest: h.dest, det: h.det, comment: '', biens: biens });
+}
+
+function pasRendreHist() {
+  var box = document.getElementById('pasHist');
+  if (!box) return;
+  var h = pasHisto();
+  if (!h.length) { box.innerHTML = '<p style="color:var(--text-muted);">Aucune passation enregistrée sur ce poste pour le moment.</p>'; return; }
+  var t = '<div class="table-wrap" style="max-height:30vh;"><table><thead><tr><th>Date</th><th>Nb biens</th><th>Bureau d\u2019origine</th><th>Nouveau bureau</th><th>Nouveau détenteur</th><th>Motif</th><th>PV</th></tr></thead><tbody>';
+  h.slice(0, 50).forEach(function (x, i) {
+    t += '<tr><td>' + escHtml(x.date) + '</td><td><b>' + x.n + '</b></td><td>' + escHtml(x.origine || '—') + '</td><td>' + escHtml(x.dest || '—') +
+      '</td><td>' + escHtml(x.det || '—') + '</td><td>' + escHtml(x.motif || '—') + '</td>' +
+      '<td><button class="btn btn-secondary" style="padding:3px 9px;font-size:.72rem;" onclick="pasRejouer(' + i + ')">📄 PV</button></td></tr>';
+  });
+  box.innerHTML = t + '</tbody></table></div>';
+}
+
+
+function pasPV(P) {
+  if (!P || !P.biens || !P.biens.length) return;
+  var Js = (window.jspdf && window.jspdf.jsPDF) ? window.jspdf.jsPDF : null;
+  if (!Js) { showToast('Générateur PDF indisponible', 'warning'); return; }
+  var doc = new Js();
+  try {
+    var _lg = (typeof onepLogoURL === 'function') ? onepLogoURL() : '';
+    if (_lg) { var _rw = 40, _rh = _rw / (typeof ONEP_LOGO_RATIO === 'number' ? ONEP_LOGO_RATIO : 2.95); doc.addImage(_lg, 'PNG', 14, 8, _rw, _rh); }
+  } catch (e) {}
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+  doc.text('PROCÈS-VERBAL DE PASSATION DE BIENS', 105, 18, { align: 'center' });
+  doc.setFontSize(9); doc.setFont('helvetica', 'normal');
+  var org = (typeof getCfg === 'function') ? getCfg().org : "ONEP — Office National de l'Eau Potable";
+  doc.text(org, 105, 24, { align: 'center' });
+  var y = 34;
+  doc.setDrawColor(0, 95, 163); doc.setLineWidth(0.6); doc.line(14, y, 196, y);
+  y += 7;
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5);
+  doc.text('Date : ' + P.date + '        Motif : ' + (P.motif || '—'), 14, y); y += 6;
+  doc.text('Bureau d\u2019origine : ' + (P.origine || '—'), 14, y); y += 6;
+  doc.text('Nouveau bureau : ' + (P.dest || '(bureau inchangé)') + (P.det ? '        Nouveau détenteur : ' + P.det : ''), 14, y); y += 8;
+  doc.setFont('helvetica', 'normal');
+  var cols = ['N°', 'Code du bien', 'Désignation', 'Compte', 'Valeur brute (FCFA)'];
+  var W = [10, 34, 92, 20, 40];
+  doc.setFillColor(0, 95, 163); doc.rect(14, y - 4.5, 182, 6.5, 'F');
+  doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(8);
+  var x = 16; cols.forEach(function (c, i) { doc.text(c, x, y); x += W[i]; });
+  doc.setTextColor(30, 35, 42); doc.setFont('helvetica', 'normal'); y += 7;
+  var tot = 0;
+  P.biens.forEach(function (b, i) {
+    if (y > 268) { doc.addPage(); y = 20; }
+    tot += (b.valeur || 0);
+    var row = [String(i + 1), b.code || '', String(b.designation || '').substring(0, 62), b.compte || '', (b.valeur ? Number(b.valeur).toLocaleString('fr-FR') : '—')];
+    x = 16;
+    row.forEach(function (c, j) { doc.text(String(c), x, y); x += W[j]; });
+    y += 5.6;
+  });
+  if (y > 255) { doc.addPage(); y = 20; }
+  y += 2; doc.setDrawColor(180); doc.line(14, y, 196, y); y += 6;
+  doc.setFont('helvetica', 'bold');
+  doc.text('Nombre de biens transférés : ' + P.biens.length + '        Valeur brute totale : ' + tot.toLocaleString('fr-FR') + ' FCFA', 14, y);
+  y += 12;
+  doc.setFont('helvetica', 'normal');
+  if (P.comment) { doc.text('Observation : ' + P.comment, 14, y); y += 10; }
+  var ySign = Math.max(y + 10, 262);
+  doc.setFont('helvetica', 'bold');
+  doc.text('Le remettant', 36, ySign, { align: 'center' });
+  doc.text('Le recevant', 150, ySign, { align: 'center' });
+  doc.setFont('helvetica', 'normal');
+  doc.setDrawColor(120);
+  doc.rect(21, ySign + 3, 30, 22); doc.rect(135, ySign + 3, 30, 22);
+  doc.setFontSize(7.5); doc.setTextColor(110);
+  doc.text('Nom, signature et cachet', 36, ySign + 28, { align: 'center' });
+  doc.text('Nom, signature et cachet', 150, ySign + 28, { align: 'center' });
+  doc.setTextColor(110); doc.setFontSize(7);
+  doc.text('PV généré le ' + new Date().toLocaleString('fr-FR') + ' · Application Inventaire ONEP', 105, 291, { align: 'center' });
+  doc.save('ONEP_PV_passation_' + P.date + '.pdf');
+  if (typeof showToast === 'function') showToast('📄 PV de passation téléchargé', 'success');
+}
 
 </script>
 <script>

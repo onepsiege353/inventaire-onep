@@ -1583,7 +1583,7 @@ input[type=file]{ padding:8px; font-size:.8rem; }
     <div id="onepSyncPanel" style="background:#F2F9F3;border:1px solid #CDEAD5;border-radius:12px;padding:14px 16px;">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <span style="font-size:1.05rem;font-weight:800;color:#14532D;">🌐 Synchronisation en ligne (temps réel)</span>
-        <span style="font-size:.78rem;background:#14532D;color:#fff;border-radius:20px;padding:2px 9px;">7.11 Pro</span>
+        <span style="font-size:.78rem;background:#14532D;color:#fff;border-radius:20px;padding:2px 9px;">7.12 Pro</span>
       </div>
       <p style="font-size:.84rem;color:#3F6B4F;margin:8px 0 10px;line-height:1.6;">
         Chaque appareil d'agent envoie <b>automatiquement</b> ses fiches, projets, mouvements et
@@ -6208,7 +6208,7 @@ try{window.__INV_ATTENDUS_REF=INV_ATTENDUS;}catch(e){}
 
 const CFG_KEY   = 'onep_config_v2';
 const AUDIT_KEY = 'onep_audit_v2';
-const VERSION_APP = '7.11 Pro';
+const VERSION_APP = '7.12 Pro';
 const CFG_DEFAUT = {
   org: "ONEP — Office National de l'Eau Potable",
   sousTitre: "Application de gestion des immobilisations · Cahier des charges 2026",
@@ -6263,6 +6263,13 @@ window.showPanel = function(id){
 
 let editerIndex = -1;
 
+
+
+window.onepCodeUI = function(){
+  const sc = document.getElementById('f_sanscode'), cb = document.getElementById('f_codebase');
+  if (sc && cb && sc.checked) cb.value = '';
+};
+
 function injectChampsFormulaires(){
   const bloc = document.getElementById('f_service');
   if (!bloc || document.getElementById('f_extras_grid')) return;
@@ -6271,6 +6278,9 @@ function injectChampsFormulaires(){
   const html = `
   <div class="grid-2" id="f_extras_grid">
     <div class="field" id="fd_ident"><label for="f_ident">N° d'identification / série <small style="font-weight:600;color:var(--primary);">(ancienne étiquette si le bien n'est pas dans la base)</small></label><input type="text" id="f_ident" placeholder="Ex. SN-2026-0042 ou ancien n° d'étiquette (ex. IM-0421)" /></div>
+    <div class="field" id="fd_codebase"><label for="f_codebase">Code dans la base ONEP <small style="font-weight:600;color:var(--primary);">(BS-… / ONEP-…)</small></label><input type="text" id="f_codebase" list="f_codesBase" placeholder="Ex. BS-001935 — laissez vide si achat récent" /></div>
+    <datalist id="f_codesBase" style="display:none;"></datalist>
+    <div class="field" id="fd_sanscode"><label>Situation du code</label><label style="font-weight:400;text-transform:none;letter-spacing:0;"><input type="checkbox" id="f_sanscode" onchange="onepCodeUI()" /> 🔖 Bien sans code (achat récent — à coder plus tard)</label></div>
     <div class="field" id="fd_chassis" style="display:none;"><label for="f_chassis">N° de châssis</label><input type="text" id="f_chassis" /></div>
     <div class="field" id="fd_immat" style="display:none;"><label for="f_immat">N° d'immatriculation</label><input type="text" id="f_immat" /></div>
     <div class="field" id="fd_carte" style="display:none;"><label for="f_cartegrise">N° de carte grise</label><input type="text" id="f_cartegrise" /></div>
@@ -6279,6 +6289,14 @@ function injectChampsFormulaires(){
     <div class="field"><label for="f_chefservice">Chef de service / responsable</label><input type="text" id="f_chefservice" /></div>
   </div>`;
   grid.insertAdjacentHTML('afterend', html);
+  try {
+    const __dl = document.getElementById('f_codesBase');
+    if (__dl && Array.isArray(window.__INV_ATTENDUS_REF)) {
+      __dl.innerHTML = window.__INV_ATTENDUS_REF.map(function(b){ return '<option value="' + escHtml(b.code) + '">' + escHtml(String(b.designation || '').substring(0, 60)) + '</option>'; }).join('');
+    }
+    const __cb = document.getElementById('f_codebase');
+    if (__cb) __cb.addEventListener('input', function(){ const sc = document.getElementById('f_sanscode'); if (sc && __cb.value.trim()) sc.checked = false; });
+  } catch(e){}
   
 
   const vIn = document.getElementById('f_valeur');
@@ -6332,6 +6350,15 @@ function saveImmobilisation(e){
   const existIdx = data.findIndex(d => d && d.numeroFiche === numeroFiche);
   if (editerIndex < 0 && existIdx >= 0) { showToast('❌ Ce numéro de fiche existe déjà — utilisez ✏️ Modifier pour le mettre à jour.', 'warning'); return; }
 
+  const __cbEl = document.getElementById('f_codebase');
+  const __cbVal = __cbEl ? __cbEl.value.trim().toUpperCase() : '';
+  if (__cbVal && Array.isArray(window.__INV_ATTENDUS_REF) && !window.__INV_ATTENDUS_REF.some(b => b.code === __cbVal)) {
+    if (!confirm('Le code « ' + __cbVal + ' » ne figure pas dans la base des biens ONEP. L\u2019enregistrer quand même ?')) {
+      showToast('Vérifiez le code base, ou cochez « 🔖 Bien sans code » si c\u2019est un achat récent.', 'warning');
+      return;
+    }
+  }
+
   const typeFiche = document.getElementById('f_type').value;
   const tiers = typeFiche.indexOf('Tiers') >= 0;
   const veh   = typeFiche.indexOf('vehicule') >= 0;
@@ -6348,6 +6375,8 @@ function saveImmobilisation(e){
     nature: document.getElementById('f_nature').value,
     nomImmobilisation: document.getElementById('f_nom').value,
     numeroIdentification: document.getElementById('f_ident') ? document.getElementById('f_ident').value : null,
+    codeBase: (function(){ const el = document.getElementById('f_codebase'), sc = document.getElementById('f_sanscode'); const v = el ? el.value.trim().toUpperCase() : ''; return (v && !(sc && sc.checked)) ? v : null; })(),
+    sansCode: (function(){ const sc = document.getElementById('f_sanscode'); return !!(sc && sc.checked); })(),
     numeroChassis: veh && document.getElementById('f_chassis') ? document.getElementById('f_chassis').value : null,
     numeroImmatriculation: veh && document.getElementById('f_immat') ? document.getElementById('f_immat').value : null,
     numeroCarteGrise: veh && document.getElementById('f_cartegrise') ? document.getElementById('f_cartegrise').value : null,
@@ -6397,6 +6426,8 @@ function saveImmobilisation(e){
 function clearFormImmobilisation(){
   const f = document.getElementById('form-immob'); if (f) f.reset();
   const c = document.getElementById('f_code'); if (c) c.value = '';
+  { const cbE = document.getElementById('f_codebase'); if (cbE) cbE.value = ''; }
+  { const scE = document.getElementById('f_sanscode'); if (scE) scE.checked = false; }
   const m = document.getElementById('formMsg'); if (m) m.textContent = '';
   editerIndex = -1;
   updateFormFields();
@@ -6418,6 +6449,8 @@ function editImmobilisation(idx){
   set('f_etat', item.etat || 'bon');        set('f_detenteur', item.nomDetenteur);
   set('f_agent', item.agentInventaire);     set('f_remarques', item.remarques || '');
   set('f_ident', item.numeroIdentification); set('f_chassis', item.numeroChassis);
+  set('f_codebase', item.codeBase || '');
+  { const scE = document.getElementById('f_sanscode'); if (scE) scE.checked = !!item.sansCode; }
   set('f_immat', item.numeroImmatriculation); set('f_cartegrise', item.numeroCarteGrise);
   set('f_prop', item.proprietaire);         set('f_chefservice', item.chefService);
   const cb = document.getElementById('f_disparu'); if (cb) cb.checked = !!item.materielDisparu;
@@ -7483,7 +7516,11 @@ function onepRenderImmo(){
     var codeE = it.numeroFiche.replace(/'/g, "\\'");
     return '<tr' + (isDup ? ' class="duplicate-row"' : '') + '>' +
       '<td><b>' + escHtml(it.numeroFiche) + '</b></td><td>' + escHtml(it.typeFiche) + '</td>' +
-      '<td>' + escHtml(it.nomImmobilisation||'') + '</td><td>' + escHtml(it.directionAffectation||'') + '</td>' +
+      '<td>' + escHtml(it.nomImmobilisation||'') +
+      (it.sansCode ? ' <span class="tag tag-amber" title="Nouvelle acquisition — à coder">🔖 à coder</span>' : '') +
+      (it.codeBase ? ' <span class="tag tag-green" title="Code dans la base ONEP">✅ ' + escHtml(it.codeBase) + '</span>' : '') +
+      (it.numeroIdentification ? ' <span class="tag tag-blue" title="Ancienne étiquette">🏷️ ' + escHtml(it.numeroIdentification) + '</span>' : '') +
+      '</td><td>' + escHtml(it.directionAffectation||'') + '</td>' +
       '<td>' + escHtml(it.service||'') + '</td><td><span class="tag tag-' + tagCls + '">' + escHtml(it.etat) + '</span></td>' +
       '<td>' + fmtMoney(it.valeurActuelle) + '</td>' +
       '<td style="white-space:nowrap;">' +

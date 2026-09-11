@@ -277,6 +277,13 @@ tbody tr:last-child td{border-bottom:0}
       <div id="sessionsInv" style="margin:2px 0 8px;"></div>
       <div class="ligne">
         <div style="flex:1;min-width:240px;"><input type="search" id="recherche" placeholder="🔎 Rechercher : code, désignation, détenteur, direction, service, agent, n° fiche…" /></div>
+        <select id="filtreCode" style="display:none;" onchange="rendu()">
+          <option value="tous">Tous les codes</option>
+          <option value="sans">🔖 Sans code — à coder</option>
+          <option value="code">✅ Codés (BS-/ONEP-)</option>
+          <option value="ancien">🏷️ Ancienne étiquette</option>
+          <option value="rien">Non renseigné</option>
+        </select>
         <button class="btn btn-v" onclick="exporterXLSX()">⬇️ Excel (.xlsx)</button>
         <button class="btn btn-o" onclick="exporterCSV()">⬇️ CSV</button>
         <button class="btn btn-g" onclick="exportToutJSON()">🗂️ JSON complet</button>
@@ -377,6 +384,8 @@ var COLONNES = {
   imm: [
     { k: 'numeroFiche', label: 'N° Fiche' },
     { k: 'numeroIdentification', label: 'N° ident. / série (ancien code)' },
+    { k: 'codeBase', label: 'Code base (BS-/ONEP-)' },
+    { k: 'sansCode', label: 'À coder' },
     { k: 'nomImmobilisation', label: 'Désignation' },
     { k: 'nature', label: 'Nature' },
     { k: 'directionAffectation', label: 'Direction' },
@@ -830,8 +839,19 @@ function rendu(){
   $('sessionsInv').innerHTML = '';
   var col = COLONNES[codeActif];
   var agg = collecter(codeActif);
+  var fc = $('filtreCode');
+  fc.style.display = codeActif === 'imm' ? '' : 'none';
+  var fCode = fc.value;
+  function matchCode(rec){
+    if (fCode === 'tous') return true;
+    if (fCode === 'sans') return !!rec.sansCode;
+    if (fCode === 'code') return !!rec.codeBase;
+    if (fCode === 'ancien') return !!rec.numeroIdentification;
+    if (fCode === 'rien') return !rec.sansCode && !rec.codeBase && !rec.numeroIdentification;
+    return true;
+  }
   var q2 = ($('recherche').value || '').toLowerCase();
-  var rows2 = agg.lignes.filter(function(L){ return filtres(L.rec, q2); });
+  var rows2 = agg.lignes.filter(function(L){ return filtres(L.rec, q2) && matchCode(L.rec); });
   var th2 = '<tr><th>Agent</th><th>Mis à jour</th>';
   col.forEach(function(c){ th2 += '<th>' + c.label + '</th>'; });
   th2 += '<th>Actions</th></tr>';
@@ -847,6 +867,8 @@ function rendu(){
       else if (c.arr) disp = Array.isArray(v) ? v.map(ech).join(', ') : ech(v);
       else if (c.num && typeof v === 'number') disp = v.toLocaleString('fr-FR');
       else if (c.k === 'numeroIdentification' && v) disp = '<span class="badge b-orange" title="N° d\'identification / ancienne étiquette renseigné par l\'agent">🏷️ ' + ech(v) + '</span>';
+      else if (c.k === 'codeBase' && v) disp = '<span class="badge b-vert" title="Ce bien est rattaché à la base officielle par son code">✅ ' + ech(v) + '</span>';
+      else if (c.k === 'sansCode') disp = (L.rec && L.rec.sansCode) ? '<span class="badge b-rouge" title="Nouvelle acquisition sans code — à coder et ajouter à la base">🔖 à coder</span>' : '<span class="fade">—</span>';
       else disp = ech(v);
       html2 += '<td>' + disp + (L.doublons > 1 ? ' <span class="petit" title="Plusieurs versions">×' + L.doublons + '</span>' : '') + '</td>';
     });
@@ -855,7 +877,10 @@ function rendu(){
   });
   $('tbody').innerHTML = html2 || '<tr><td colspan="' + (col.length + 3) + '" class="gris" style="text-align:center;padding:22px;">Aucun enregistrement ne correspond.</td></tr>';
   var agents2 = agg.agents.filter(function(v,i,a){ return a.indexOf(v) === i; });
-  $('countRow').innerHTML = rows2.length + ' ligne(s) affichée(s) sur ' + agg.lignes.length + ' en ligne · postes contributeurs : ' + (agents2.length ? agents2.map(ech).join(', ') : '—');
+  var nSans = agg.lignes.filter(function(L){ return L.rec && L.rec.sansCode; }).length;
+  $('countRow').innerHTML = rows2.length + ' ligne(s) affichée(s) sur ' + agg.lignes.length + ' en ligne' +
+    (codeActif === 'imm' && nSans ? ' · <span style="color:#B3261E;font-weight:700;">🔖 biens sans code à coder : ' + nSans + '</span>' : '') +
+    ' · postes contributeurs : ' + (agents2.length ? agents2.map(ech).join(', ') : '—');
 }
 
 /* ============================================================
@@ -1020,7 +1045,7 @@ function exporterXLSX(){
       body.push([r.code, r.designation, r.compte, r.famille, statutLabel(r.statut), r.agents, r.localisation, r.bureau, r.detenteur, r.date, r.etat, r.observation, r.valeurBrute, r.vnc]);
     });
     var ws2 = XLSX.utils.aoa_to_sheet(body);
-    ws2['!cols'] = [{ wch: 15 }, { wch: 45 }, { wch: 10 }, { wch: 14 }, { wch: 16 }, { wch: 20 }, { wch: 22 }, { wch: 24 }, { wch: 20 }, { wch: 14 }, { wch: 12 }, { wch: 30 }, { wch: 14 }, { wch: 12 }];
+    ws2['!cols'] = [{ wch: 15 }, { wch: 22 }, { wch: 14 }, { wch: 45 }, { wch: 10 }, { wch: 14 }, { wch: 16 }, { wch: 20 }, { wch: 22 }, { wch: 24 }, { wch: 20 }, { wch: 14 }, { wch: 12 }, { wch: 30 }, { wch: 14 }, { wch: 12 }];
     XLSX.utils.book_append_sheet(wb, ws2, 'Détail des biens');
     var feuille = 'detail';
     XLSX.writeFile(wb, 'inventaire-onep-inventaire-physique.xlsx');
@@ -1037,6 +1062,21 @@ function exporterXLSX(){
     });
     var ws = XLSX.utils.aoa_to_sheet(bd);
     XLSX.utils.book_append_sheet(wb, ws, CODE_LABELS[codeActif]);
+    if (codeActif === 'imm'){
+      // feuille « à coder » : nouvelles acquisitions sans code officiel
+      var aggImm = collecter('imm');
+      var sans = aggImm.lignes.filter(function(L){ return L.rec && L.rec.sansCode; });
+      if (sans.length){
+        var bs = [['N° Fiche', 'Désignation', 'Nature', 'Direction', 'Service/Bureau', 'Détenteur', 'Date acquisition', 'Valeur entrée (FCFA)', 'Agent']];
+        sans.forEach(function(L){
+          var m = L.m || {}, rc = L.rec;
+          bs.push([rc.numeroFiche || '', rc.nomImmobilisation || '', rc.nature || '', rc.directionAffectation || '', rc.service || '', rc.nomDetenteur || '', rc.dateAcquisition || '', rc.valeurEntree || '', m.n || '']);
+        });
+        var ws3 = XLSX.utils.aoa_to_sheet(bs);
+        ws3['!cols'] = [{ wch: 15 }, { wch: 45 }, { wch: 20 }, { wch: 32 }, { wch: 24 }, { wch: 20 }, { wch: 14 }, { wch: 18 }, { wch: 18 }];
+        XLSX.utils.book_append_sheet(wb, ws3, 'Biens sans code (à coder)');
+      }
+    }
     XLSX.writeFile(wb, 'inventaire-onep-' + codeActif + '.xlsx');
   }
 }

@@ -1583,7 +1583,7 @@ input[type=file]{ padding:8px; font-size:.8rem; }
     <div id="onepSyncPanel" style="background:#F2F9F3;border:1px solid #CDEAD5;border-radius:12px;padding:14px 16px;">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <span style="font-size:1.05rem;font-weight:800;color:#14532D;">🌐 Synchronisation en ligne (temps réel)</span>
-        <span style="font-size:.78rem;background:#14532D;color:#fff;border-radius:20px;padding:2px 9px;">7.12 Pro</span>
+        <span style="font-size:.78rem;background:#14532D;color:#fff;border-radius:20px;padding:2px 9px;">7.13 Pro</span>
       </div>
       <p style="font-size:.84rem;color:#3F6B4F;margin:8px 0 10px;line-height:1.6;">
         Chaque appareil d'agent envoie <b>automatiquement</b> ses fiches, projets, mouvements et
@@ -6208,7 +6208,7 @@ try{window.__INV_ATTENDUS_REF=INV_ATTENDUS;}catch(e){}
 
 const CFG_KEY   = 'onep_config_v2';
 const AUDIT_KEY = 'onep_audit_v2';
-const VERSION_APP = '7.12 Pro';
+const VERSION_APP = '7.13 Pro';
 const CFG_DEFAUT = {
   org: "ONEP — Office National de l'Eau Potable",
   sousTitre: "Application de gestion des immobilisations · Cahier des charges 2026",
@@ -6995,7 +6995,10 @@ function generateRapport(type){
       ['Taux de couverture', total ? Math.round(nR/total*100) + ' %' : '0 %'],
       ['Agents participants', (typeof invSession !== 'undefined' && invSession.agentsFusionnes && invSession.agentsFusionnes.length) ? invSession.agentsFusionnes.join(', ') : (invSession.agent || '—')]
     ];
-    R.summaries = [['Attendus', total], ['Retrouvés', nR], ['Couverture', total ? Math.round(nR/total*100) + ' %' : '0 %']];
+    const __nsc = (function(){ try { return getData(STORAGE_KEYS.immobilisations).filter(x => x && x.sansCode); } catch(e){ return []; } })();
+    R.rows.push(['Nouvelles acquisitions sans code (à coder)', __nsc.length]);
+    if (__nsc.length) R.rows.push(['— Liste des biens à coder', __nsc.map(x => (x.numeroFiche || '') + ' ' + (x.nomImmobilisation || '')).join(' · ')]);
+    R.summaries = [['Attendus', total], ['Retrouvés', nR], ['À coder', __nsc.length], ['Couverture', total ? Math.round(nR/total*100) + ' %' : '0 %']];
   } else {
     R.titre = 'Rapport';
     R.header = ['Statistique','Valeur'];

@@ -1016,6 +1016,7 @@ function exporterXLSX(){
   if (codeActif === 'inv'){
     var a = invAgg || collecterInv();
     // Feuille synthèse
+    var __sans = (collecter('imm').lignes.filter(function(L){ return L.rec && L.rec.sansCode; })).length;
     var syn = [
       ['Rapport inventaire physique ONEP', ''],
       ['Date d\'export', dateJour],
@@ -1024,6 +1025,7 @@ function exporterXLSX(){
       ['Biens retrouvés', a.nR],
       ['Biens disparus', a.nD],
       ['Biens non répertoriés', a.nNon],
+      ['Nouvelles acquisitions sans code (à coder)', __sans],
       ['Taux de couverture', a.taux + ' %'],
       ['', ''],
       ['Postes / sessions reçues', a.sessions.length],
@@ -1047,6 +1049,18 @@ function exporterXLSX(){
     var ws2 = XLSX.utils.aoa_to_sheet(body);
     ws2['!cols'] = [{ wch: 15 }, { wch: 22 }, { wch: 14 }, { wch: 45 }, { wch: 10 }, { wch: 14 }, { wch: 16 }, { wch: 20 }, { wch: 22 }, { wch: 24 }, { wch: 20 }, { wch: 14 }, { wch: 12 }, { wch: 30 }, { wch: 14 }, { wch: 12 }];
     XLSX.utils.book_append_sheet(wb, ws2, 'Détail des biens');
+    var aggImm = collecter('imm');
+    var sans = aggImm.lignes.filter(function(L){ return L.rec && L.rec.sansCode; });
+    if (sans.length){
+      var bs = [['N° Fiche', 'Désignation', 'Nature', 'Direction', 'Service/Bureau', 'Détenteur', 'Date acquisition', 'Valeur entrée (FCFA)', 'Agent']];
+      sans.forEach(function(L){
+        var m = L.m || {}, rc = L.rec;
+        bs.push([rc.numeroFiche || '', rc.nomImmobilisation || '', rc.nature || '', rc.directionAffectation || '', rc.service || '', rc.nomDetenteur || '', rc.dateAcquisition || '', rc.valeurEntree || '', m.n || '']);
+      });
+      var ws3 = XLSX.utils.aoa_to_sheet(bs);
+      ws3['!cols'] = [{ wch: 15 }, { wch: 45 }, { wch: 20 }, { wch: 32 }, { wch: 24 }, { wch: 20 }, { wch: 14 }, { wch: 18 }, { wch: 18 }];
+      XLSX.utils.book_append_sheet(wb, ws3, 'Biens sans code (à coder)');
+    }
     var feuille = 'detail';
     XLSX.writeFile(wb, 'inventaire-onep-inventaire-physique.xlsx');
   } else {

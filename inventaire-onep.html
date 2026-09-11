@@ -1583,7 +1583,7 @@ input[type=file]{ padding:8px; font-size:.8rem; }
     <div id="onepSyncPanel" style="background:#F2F9F3;border:1px solid #CDEAD5;border-radius:12px;padding:14px 16px;">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <span style="font-size:1.05rem;font-weight:800;color:#14532D;">🌐 Synchronisation en ligne (temps réel)</span>
-        <span style="font-size:.78rem;background:#14532D;color:#fff;border-radius:20px;padding:2px 9px;">7.10 Pro</span>
+        <span style="font-size:.78rem;background:#14532D;color:#fff;border-radius:20px;padding:2px 9px;">7.11 Pro</span>
       </div>
       <p style="font-size:.84rem;color:#3F6B4F;margin:8px 0 10px;line-height:1.6;">
         Chaque appareil d'agent envoie <b>automatiquement</b> ses fiches, projets, mouvements et
@@ -6208,7 +6208,7 @@ try{window.__INV_ATTENDUS_REF=INV_ATTENDUS;}catch(e){}
 
 const CFG_KEY   = 'onep_config_v2';
 const AUDIT_KEY = 'onep_audit_v2';
-const VERSION_APP = '7.10 Pro';
+const VERSION_APP = '7.11 Pro';
 const CFG_DEFAUT = {
   org: "ONEP — Office National de l'Eau Potable",
   sousTitre: "Application de gestion des immobilisations · Cahier des charges 2026",
@@ -6270,7 +6270,7 @@ function injectChampsFormulaires(){
 
   const html = `
   <div class="grid-2" id="f_extras_grid">
-    <div class="field" id="fd_ident"><label for="f_ident">N° d'identification / série</label><input type="text" id="f_ident" placeholder="Ex. SN-2026-0042" /></div>
+    <div class="field" id="fd_ident"><label for="f_ident">N° d'identification / série <small style="font-weight:600;color:var(--primary);">(ancienne étiquette si le bien n'est pas dans la base)</small></label><input type="text" id="f_ident" placeholder="Ex. SN-2026-0042 ou ancien n° d'étiquette (ex. IM-0421)" /></div>
     <div class="field" id="fd_chassis" style="display:none;"><label for="f_chassis">N° de châssis</label><input type="text" id="f_chassis" /></div>
     <div class="field" id="fd_immat" style="display:none;"><label for="f_immat">N° d'immatriculation</label><input type="text" id="f_immat" /></div>
     <div class="field" id="fd_carte" style="display:none;"><label for="f_cartegrise">N° de carte grise</label><input type="text" id="f_cartegrise" /></div>

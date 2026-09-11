@@ -376,6 +376,7 @@ var CODE_LABELS = {
 var COLONNES = {
   imm: [
     { k: 'numeroFiche', label: 'N° Fiche' },
+    { k: 'numeroIdentification', label: 'N° ident. / série (ancien code)' },
     { k: 'nomImmobilisation', label: 'Désignation' },
     { k: 'nature', label: 'Nature' },
     { k: 'directionAffectation', label: 'Direction' },
@@ -845,6 +846,7 @@ function rendu(){
       if (v === null || v === undefined) disp = '<span class="fade">—</span>';
       else if (c.arr) disp = Array.isArray(v) ? v.map(ech).join(', ') : ech(v);
       else if (c.num && typeof v === 'number') disp = v.toLocaleString('fr-FR');
+      else if (c.k === 'numeroIdentification' && v) disp = '<span class="badge b-orange" title="N° d\'identification / ancienne étiquette renseigné par l\'agent">🏷️ ' + ech(v) + '</span>';
       else disp = ech(v);
       html2 += '<td>' + disp + (L.doublons > 1 ? ' <span class="petit" title="Plusieurs versions">×' + L.doublons + '</span>' : '') + '</td>';
     });

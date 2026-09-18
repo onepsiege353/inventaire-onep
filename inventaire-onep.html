@@ -1583,7 +1583,7 @@ input[type=file]{ padding:8px; font-size:.8rem; }
     <div id="onepSyncPanel" style="background:#F2F9F3;border:1px solid #CDEAD5;border-radius:12px;padding:14px 16px;">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <span style="font-size:1.05rem;font-weight:800;color:#14532D;">🌐 Synchronisation en ligne (temps réel)</span>
-        <span style="font-size:.78rem;background:#14532D;color:#fff;border-radius:20px;padding:2px 9px;">7.14 Pro</span>
+        <span style="font-size:.78rem;background:#14532D;color:#fff;border-radius:20px;padding:2px 9px;">7.15 Pro</span>
       </div>
       <p style="font-size:.84rem;color:#3F6B4F;margin:8px 0 10px;line-height:1.6;">
         Chaque appareil d'agent envoie <b>automatiquement</b> ses fiches, projets, mouvements et
@@ -6251,7 +6251,7 @@ try{window.__INV_ATTENDUS_REF=INV_ATTENDUS;}catch(e){}
 
 const CFG_KEY   = 'onep_config_v2';
 const AUDIT_KEY = 'onep_audit_v2';
-const VERSION_APP = '7.14 Pro';
+const VERSION_APP = '7.15 Pro';
 const CFG_DEFAUT = {
   org: "ONEP — Office National de l'Eau Potable",
   sousTitre: "Application de gestion des immobilisations · Cahier des charges 2026",
@@ -7174,6 +7174,48 @@ document.addEventListener('visibilitychange', function(){ if (document.visibilit
 
 
 
+window.ONEP_sessionExportPayload = function(){
+  var raw = null; try { raw = localStorage.getItem('onep_inventaire_session_v2'); } catch(e){}
+  var sess = null; try { sess = JSON.parse(raw || 'null'); } catch(e){}
+  if (!sess) sess = { agent: '', localisation: '', retrouves: {}, disparus: {}, agentsFusionnes: [] };
+  var uid = '';
+  try { var dg = (window.onepSync && typeof onepSync.diagnostics === 'function') ? onepSync.diagnostics() : null; if (dg && dg.authUid) uid = dg.authUid; } catch(e){}
+  return {
+    type: 'onep_session_secours', app: 'ONEP Inventaire',
+    version: (typeof VERSION_APP !== 'undefined') ? VERSION_APP : '',
+    exportedAt: new Date().toISOString(),
+    agent: sess.agent || '', localisation: sess.localisation || '', uid: uid,
+    nRetrouves: Object.keys(sess.retrouves || {}).length,
+    nDisparus: Object.keys(sess.disparus || {}).length,
+    session: sess
+  };
+};
+window.ONEP_exporterSession = function(){
+  try {
+    var pl = window.ONEP_sessionExportPayload();
+    if (!pl.nRetrouves && !pl.nDisparus) { showToast('Session vide — marquez d\u2019abord des biens retrouvés/disparus.', 'warning'); return; }
+    var nom = 'ONEP_session_secours_' + String(pl.agent || 'agent').replace(/\s+/g, '_') + '_' + new Date().toISOString().slice(0, 16).replace(/[:T]/g, '-') + '.json';
+    if (typeof window.ONEP_exportHook === 'function') { window.ONEP_exportHook(pl, nom); return; }
+    var blob = new Blob([JSON.stringify(pl, null, 1)], { type: 'application/json' });
+    
+
+    try {
+      var fichier = new File([blob], nom, { type: 'application/json' });
+      if (navigator.share && navigator.canShare && navigator.canShare({ files: [fichier] })) {
+        navigator.share({ files: [fichier], title: 'Session d\u2019inventaire ONEP', text: 'Sauvegarde de la session d\u2019inventaire (' + pl.nRetrouves + ' retrouvés, ' + pl.nDisparus + ' disparus)' })
+          .then(function(){ showToast('📤 Session partagée', 'success'); }).catch(function(){});
+        return;
+      }
+    } catch(e){}
+    var a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nom;
+    document.body.appendChild(a); a.click();
+    setTimeout(function(){ URL.revokeObjectURL(a.href); a.remove(); }, 400);
+    showToast('📤 Fichier de secours téléchargé — envoyez-le à l\u2019administrateur (WhatsApp/e-mail).', 'success');
+  } catch(e){ showToast('Export impossible : ' + (e && e.message), 'error'); }
+};
+
+
+
 function onepInvStatutUI(){
   var ancre = document.getElementById('invScanCode');
   if (!ancre) return;
@@ -7190,7 +7232,8 @@ function onepInvStatutUI(){
   document.getElementById('onepInvSaveStatus').innerHTML =
     '💾 Enregistré sur ce téléphone : <b>' + nR + '</b> bien(s) retrouvé(s) · <b>' + nD + '</b> disparu(s)' +
     (ag ? ' · agent : ' + escHtml(ag) : '') +
-    (t ? ' · <span title="Sauvegarde de secours automatique">dernière sauvegarde : ' + t + '</span>' : ' · sauvegarde en cours…');
+    (t ? ' · <span title="Sauvegarde de secours automatique">dernière sauvegarde : ' + t + '</span>' : ' · sauvegarde en cours…') +
+    ' <button type="button" onclick="ONEP_exporterSession()" style="margin-left:6px;background:#14532D;color:#fff;border:0;border-radius:20px;padding:4px 12px;font-size:.78rem;font-weight:700;cursor:pointer;" title="Créer un fichier de secours et l\u2019envoyer à l\u2019administrateur (WhatsApp, e-mail…)">📤 Envoi / secours</button>';
 }
 
 

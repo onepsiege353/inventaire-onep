@@ -275,6 +275,11 @@ tbody tr:last-child td{border-bottom:0}
         <div class="onglet" data-c="loc">📍 Localisations</div>
       </div>
       <div id="sessionsInv" style="margin:2px 0 8px;"></div>
+      <div id="zoneImportSecours" style="display:none;margin:2px 0 8px;">
+        <input type="file" id="fichImportSecours" accept=".json,application/json" style="display:none" onchange="ONEP_importerSecours(this)" />
+        <button class="btn btn-o" onclick="document.getElementById('fichImportSecours').click()">📥 Importer une session de secours (fichier envoyé par un agent)</button>
+        <span class="petit" style="margin-left:8px;">Côté agent : bouton 📤 dans l’onglet Inventaire → envoyer le fichier (WhatsApp/e-mail) → l’importer ici pour le verser dans la base.</span>
+      </div>
       <div class="ligne">
         <div style="flex:1;min-width:240px;"><input type="search" id="recherche" placeholder="🔎 Rechercher : code, désignation, détenteur, direction, service, agent, n° fiche…" /></div>
         <select id="filtreCode" style="display:none;" onchange="rendu()">
@@ -600,6 +605,31 @@ function fmtNum(n){ return (typeof n === 'number' && isFinite(n)) ? n.toLocaleSt
 /* ============================================================
    AGRÉGATION — Inventaire physique (tous les postes)
    ============================================================ */
+/* ---------- Import d'une session de secours (fichier exporté par un agent) ---------- */
+function ONEP_importerSecours(input){
+  var f = input && input.files && input.files[0];
+  if (!f) return;
+  var fr = new FileReader();
+  fr.onload = function(e){
+    var txt = String(e.target.result || '');
+    var pl; try { pl = JSON.parse(txt); } catch(err){ alert('Fichier illisible (JSON attendu).'); input.value = ''; return; }
+    var sess = (pl && pl.session) ? pl.session : ((pl && pl.retrouves) ? pl : null);
+    if (!sess || typeof sess.retrouves !== 'object') { alert('Ce fichier n\u2019est pas une session d\u2019inventaire ONEP.'); input.value = ''; return; }
+    var nR = Object.keys(sess.retrouves || {}).length, nD = Object.keys(sess.disparus || {}).length;
+    var uid = (pl.uid || '').trim();
+    var agent = pl.agent || sess.agent || '?';
+    if (!confirm('Importer cette session de secours ?\nAgent : ' + agent + '\nRetrouvés : ' + nR + ' · Disparus : ' + nD +
+      (uid ? '\nElle sera versée sur le poste en ligne de cet agent.' : '\nElle sera ajoutée comme session « SECOURS » dans la base.'))) { input.value = ''; return; }
+    var cible = uid ? ('agents/' + uid + '/inv') : ('agents/SECOURS-' + new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19) + '/inv');
+    db.ref(cible).set({ rec: sess, m: { n: agent, l: 'import secours', t: Date.now(), d: 'import', v: pl.version || '' } }).then(function(){
+      alert('✅ Session de secours versée dans la base. Elle apparaît dans l\u2019onglet Inventaire physique (session « ' + agent + ' »).');
+      input.value = '';
+    }).catch(function(err){ alert('Erreur d\u2019écriture : ' + (err && err.message)); });
+  };
+  fr.onerror = function(){ alert('Lecture du fichier impossible.'); input.value = ''; };
+  fr.readAsText(f);
+}
+
 function collecterInv(){
   collecterPassations();
   var sessions = [];          // {uid, m, doc}
@@ -794,6 +824,7 @@ function rendreSessions(){
 }
 
 function rendu(){
+  var __zi = $('zoneImportSecours'); if (__zi) __zi.style.display = codeActif === 'inv' ? '' : 'none';
   rendreDevices();
   rendreStats();
   if (codeActif === 'inv'){

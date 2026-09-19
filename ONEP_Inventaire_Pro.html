@@ -1583,7 +1583,7 @@ input[type=file]{ padding:8px; font-size:.8rem; }
     <div id="onepSyncPanel" style="background:#F2F9F3;border:1px solid #CDEAD5;border-radius:12px;padding:14px 16px;">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <span style="font-size:1.05rem;font-weight:800;color:#14532D;">🌐 Synchronisation en ligne (temps réel)</span>
-        <span style="font-size:.78rem;background:#14532D;color:#fff;border-radius:20px;padding:2px 9px;">7.16 Pro</span>
+        <span style="font-size:.78rem;background:#14532D;color:#fff;border-radius:20px;padding:2px 9px;">7.17 Pro</span>
       </div>
       <p style="font-size:.84rem;color:#3F6B4F;margin:8px 0 10px;line-height:1.6;">
         Chaque appareil d'agent envoie <b>automatiquement</b> ses fiches, projets, mouvements et
@@ -6251,7 +6251,7 @@ try{window.__INV_ATTENDUS_REF=INV_ATTENDUS;}catch(e){}
 
 const CFG_KEY   = 'onep_config_v2';
 const AUDIT_KEY = 'onep_audit_v2';
-const VERSION_APP = '7.16 Pro';
+const VERSION_APP = '7.17 Pro';
 const CFG_DEFAUT = {
   org: "ONEP — Office National de l'Eau Potable",
   sousTitre: "Application de gestion des immobilisations · Cahier des charges 2026",
@@ -6294,7 +6294,8 @@ window.showPanel = function(id){
   });
   const p = document.getElementById('panel-'+id); if (p) p.classList.remove('hidden');
   const n = document.getElementById('nav-'+id);   if (n) n.classList.add('active');
-  if (id==='inventaire') setTimeout(()=>{ const f=document.getElementById('invScanCode'); if(f) f.focus(); },200);
+  if (id==='inventaire'){ setTimeout(()=>{ const f=document.getElementById('invScanCode'); if(f) f.focus(); },200);
+    setTimeout(()=>{ try { window.ONEP_autoRetrouveDepuisFiches('boot'); } catch(e){} }, 350); }
   if (id==='etiquettes') etiGenerer();
   if (id==='passation' && typeof pasInit==='function') pasInit();
   if (id==='audit') renderAudit();
@@ -6457,6 +6458,7 @@ function saveImmobilisation(e){
   }
   setData(STORAGE_KEYS.immobilisations, data);
   editerIndex = -1;
+  try { if (window.ONEP_autoRetrouveDepuisFiches) window.ONEP_autoRetrouveDepuisFiches('fiche', objet); } catch(e){}
   try { if (typeof onepUpsertEtiq === 'function') onepUpsertEtiq(objet); } catch(e){}
   showToast('Fiche enregistrée : ' + numeroFiche + ' — étiquette créée/mise à jour', 'success');
   clearFormImmobilisation();
@@ -6477,6 +6479,81 @@ function clearFormImmobilisation(){
   recalcValeurActuelle();
   if (typeof ONEP_PHOTO_CUR !== 'undefined') { ONEP_PHOTO_CUR = null; if (typeof onepPhotoUI === 'function') onepPhotoUI(); }
 }
+
+
+
+
+
+
+
+
+
+
+
+window.ONEP_extraireCodesBase = function(v){
+  var out = [], vu = {}, s = String(v || '').toUpperCase(), re = /(BS|ONEP)[\s\-_.]*(\d{2,8})/g, m;
+  while ((m = re.exec(s))) { var c = m[1] + '-' + m[2]; if (!vu[c]) { vu[c] = 1; out.push(c); } }
+  if (!out.length && Array.isArray(window.__INV_ATTENDUS_REF)) {
+    var t = s.trim();
+    for (var i = 0; i < window.__INV_ATTENDUS_REF.length; i++) {
+      if (String(window.__INV_ATTENDUS_REF[i].code || '').toUpperCase() === t) { out.push(window.__INV_ATTENDUS_REF[i].code); break; }
+    }
+  }
+  return out;
+};
+window.ONEP_autoRetrouveDepuisFiches = function(origine, ficheSeule){
+  var ajouts = 0;
+  try {
+    var fiches = ficheSeule ? [ficheSeule] : (getData(STORAGE_KEYS.immobilisations) || []);
+    if (!fiches.length) return 0;
+    var sess = null;
+    try { sess = JSON.parse(localStorage.getItem('onep_inventaire_session_v2') || 'null'); } catch (e) { sess = null; }
+    if (!sess || typeof sess !== 'object') sess = null;
+    if (!sess) sess = { agent: '', localisation: '', startDate: new Date().toISOString(), retrouves: {}, disparus: {}, agentsFusionnes: [] };
+    if (!sess.retrouves || typeof sess.retrouves !== 'object') sess.retrouves = {};
+    if (!sess.disparus || typeof sess.disparus !== 'object') sess.disparus = {};
+    if (!Array.isArray(sess.agentsFusionnes)) sess.agentsFusionnes = [];
+    var refParCode = {};
+    (window.__INV_ATTENDUS_REF || []).forEach(function (b) { if (b && b.code) refParCode[String(b.code).toUpperCase()] = b; });
+    var now = new Date();
+    var ts = now.toISOString().split('T')[0] + ' ' + now.toTimeString().slice(0, 5);
+    fiches.forEach(function (f) {
+      if (!f) return;
+      var codes = window.ONEP_extraireCodesBase(f.codeBase);
+      if (!codes.length) return;
+      codes.forEach(function (code) {
+        if (sess.retrouves[code] || sess.disparus[code]) return;   
+
+        var ref = refParCode[code] || {};
+        var agent = sess.agent || f.agentInventaire || 'Agent ONEP';
+        sess.retrouves[code] = {
+          date: ts,
+          etat: f.etat || 'bon',
+          observation: 'Relevé automatique — fiche imm. ' + (f.numeroFiche || '?') + (origine === 'boot' ? ' (rattrapage)' : ''),
+          agent: agent,
+          localisation: sess.localisation || f.service || '',
+          compte: f.codeImmobilisation || ref.compte || '',
+          designation: f.nomImmobilisation || ref.designationBrute || ref.designation || code,
+          valeurBrute: (typeof f.valeurEntree === 'number' ? f.valeurEntree : (ref.valeurBrute || 0)),
+          vnc: (typeof f.valeurActuelle === 'number' ? f.valeurActuelle : (ref.vnc || 0)),
+          detenteur: f.nomDetenteur || ref.detenteur || '',
+          source: 'Fiche immobilisation (auto)'
+        };
+        if (sess.agentsFusionnes.indexOf(agent) === -1) sess.agentsFusionnes.push(agent);
+        ajouts++;
+      });
+    });
+    if (ajouts > 0) {
+      localStorage.setItem('onep_inventaire_session_v2', JSON.stringify(sess));   
+
+      try { showToast('✅ ' + ajouts + ' code(s) BS/ONEP noté(s) dans les fiches → marqué(s) « retrouvé » dans l\u2019inventaire physique', 'success'); } catch (e) {}
+      try { auditer('inventaire', '🔄 ' + ajouts + ' code(s) BS/ONEP des fiches immobilisations marqué(s) retrouvé(s) automatiquement'); } catch (e) {}
+      try { if (typeof invLoadSession === 'function') invLoadSession(); } catch (e) {}
+      try { if (typeof invRenderAll === 'function') invRenderAll(); } catch (e) {}
+    }
+  } catch (e) {}
+  return ajouts;
+};
 
 function editImmobilisation(idx){
   const data = getData(STORAGE_KEYS.immobilisations);
@@ -7238,9 +7315,39 @@ function onepInvStatutUI(){
 
 
 
+
+
+
+
+
+
+
+
+
+
+(function(){
+  try {
+    var __draft = window.saveInvSessionDraft;
+    if (typeof __draft === 'function') {
+      window.saveInvSessionDraft = function(){
+        var vA = null, vL = null;
+        try { var ea = document.getElementById('invAgent'); if (ea) vA = ea.value;
+              var el = document.getElementById('invLocalisation'); if (el) vL = el.value; } catch (e) {}
+        try { if (typeof window.invLoadSession === 'function') window.invLoadSession(); } catch (e) {}
+        try { var ea2 = document.getElementById('invAgent'); if (ea2 && vA !== null) ea2.value = vA;
+              var el2 = document.getElementById('invLocalisation'); if (el2 && vL !== null) el2.value = vL; } catch (e) {}
+        return __draft.apply(this, arguments);
+      };
+    }
+  } catch (e) {}
+})();
+
+
+
 document.addEventListener('DOMContentLoaded', function(){
   try { window.ONEP_backupNow(); } catch(e){}
   setTimeout(function(){
+    try { window.ONEP_autoRetrouveDepuisFiches('boot'); } catch(e){}
     try { onepInvStatutUI(); } catch(e){}
     setInterval(function(){ try { onepInvStatutUI(); } catch(e){} }, 3000);
     
@@ -9116,7 +9223,11 @@ function onepAfterLogin(s){
   var navA=document.getElementById('nav-audit');if(navA)navA.style.display=(s.role==='admin')?'':'none';
   var lo=document.getElementById('btnLogout');if(lo)lo.style.display='inline-flex';
   var ia=document.getElementById('invAgent');
-  if(ia&&!ia.value.trim()){ia.value=s.nom;if(typeof saveInvSessionDraft==='function')saveInvSessionDraft();}
+  if(ia&&!ia.value.trim()){
+    try{ if(typeof invLoadSession==='function') invLoadSession(); }catch(e){}   /* v7.17 : recharge la session persistée AVANT tout — jamais d'écrasement */
+    ia.value=s.nom;
+    if(typeof saveInvSessionDraft==='function')saveInvSessionDraft();
+  }
   try{localStorage.setItem('onep_utilisateur',s.nom);}catch(e){}
   if(typeof auditer==='function')auditer('connexion','Connexion reussie : '+s.login+' — '+s.nom);
   if(typeof onepHeroUpdate==='function')onepHeroUpdate();
@@ -9396,7 +9507,7 @@ document.addEventListener('DOMContentLoaded',function(){
   function invAttendusTotal() { try { if (typeof INV_ATTENDUS !== 'undefined' && INV_ATTENDUS && INV_ATTENDUS.length) return INV_ATTENDUS.length; } catch (e) {} return 0; }
   function invRawNow() { try { return localStorage.getItem(INV_DOC_KEY); } catch (e) { return null; } }
   function invDocNow(raw) { if (!raw) return null; try { var o = JSON.parse(raw); return (o && typeof o === 'object') ? o : null; } catch (e) { return null; } }
-  function invMeta() { var s = session(); return { l: s ? s.login : '', n: s ? s.nom || s.login : '', d: state.dev, t: Date.now(), v: '7.16 Pro', refTotal: invAttendusTotal() }; }
+  function invMeta() { var s = session(); return { l: s ? s.login : '', n: s ? s.nom || s.login : '', d: state.dev, t: Date.now(), v: '7.17 Pro', refTotal: invAttendusTotal() }; }
 
   function invSendDoc(doc, cb) {
     ensureAuth(function () {
@@ -9988,7 +10099,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var info = presenceInfo();
     presWrite(info);
     if (wsConnected === true) {
-      try { dbRef('/agents/' + nk() + '/_about').onDisconnect().set({ dev: state.dev, login: info.login, nom: info.nom, v: '7.16 Pro', last: Date.now(), online: false }).catch(function () {}); } catch (e) {}
+      try { dbRef('/agents/' + nk() + '/_about').onDisconnect().set({ dev: state.dev, login: info.login, nom: info.nom, v: '7.17 Pro', last: Date.now(), online: false }).catch(function () {}); } catch (e) {}
     }
     presTimer = setInterval(function () {
       if (!enabled() || !session() || !uid()) return;
@@ -10362,7 +10473,7 @@ document.addEventListener('DOMContentLoaded',function(){
     log: logLine,
     refreshPanel: refreshPanelValues,
     diagnostics: diagnostics,
-    v: '7.16 Pro'
+    v: '7.17 Pro'
   };
   
 

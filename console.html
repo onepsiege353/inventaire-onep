@@ -665,6 +665,48 @@ function collecterInv(){
       if (dk.uids.indexOf(uid) === -1) dk.uids.push(uid);
     }
   }
+  // ── Biens « retrouvés » déduits des FICHES d'immobilisation ──
+  // Tout code BS-… / ONEP-… saisi par un agent dans le champ « Code dans la base
+  // ONEP » d'une fiche vaut constatation physique : le bien apparaît automatiquement
+  // comme retrouvé dans l'état admin (sans écraser les saisies manuelles ni les
+  // « disparus » déclarés).
+  var extraireCodes = function (v) {
+    var out = [], vu = {}, ss = String(v || '').toUpperCase(), re = /(BS|ONEP)[\s\-_.]*(\d{2,8})/g, mm;
+    while ((mm = re.exec(ss))) { var cc = mm[1] + '-' + mm[2]; if (!vu[cc]) { vu[cc] = 1; out.push(cc); } }
+    return out;
+  };
+  for (var uidF in dataAgents){
+    var aF = dataAgents[uidF];
+    if (!aF || !aF.imm) continue;
+    var nomF = (aF._about && (aF._about.nom || aF._about.login)) || uidF;
+    for (var idF in aF.imm){
+      var entF = aF.imm[idF];
+      var recF = entF && entF.rec;
+      if (!recF) continue;
+      var codesF = extraireCodes(recF.codeBase);
+      for (var ci = 0; ci < codesF.length; ci++){
+        var cde = codesF[ci];
+        if (cde in ret || cde in dis) continue;
+        ret[cde] = { en: {
+            date: recF.dateInventaire || '',
+            etat: recF.etat || 'bon',
+            observation: 'Relevé automatique — fiche imm. ' + (recF.numeroFiche || '?'),
+            agent: nomF,
+            localisation: recF.service || '',
+            compte: recF.codeImmobilisation || '',
+            designation: recF.nomImmobilisation || cde,
+            valeurBrute: (typeof recF.valeurEntree === 'number' ? recF.valeurEntree : 0),
+            vnc: (typeof recF.valeurActuelle === 'number' ? recF.valeurActuelle : 0),
+            detenteur: recF.nomDetenteur || '',
+            source: 'Fiche immobilisation (auto)'
+          },
+          ts: (entF.m && entF.m.t) || 0,
+          agents: nomF ? [nomF] : [],
+          locs: recF.service ? [recF.service] : [],
+          uids: [uidF] };
+      }
+    }
+  }
   // liste des biens non répertoriés = référentiel − (retrouvés ∪ disparus)
   var rows = [];
   function toRow(code, statut, en, agents, locs, dateStr){

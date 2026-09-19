@@ -1583,7 +1583,7 @@ input[type=file]{ padding:8px; font-size:.8rem; }
     <div id="onepSyncPanel" style="background:#F2F9F3;border:1px solid #CDEAD5;border-radius:12px;padding:14px 16px;">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <span style="font-size:1.05rem;font-weight:800;color:#14532D;">🌐 Synchronisation en ligne (temps réel)</span>
-        <span style="font-size:.78rem;background:#14532D;color:#fff;border-radius:20px;padding:2px 9px;">7.15 Pro</span>
+        <span style="font-size:.78rem;background:#14532D;color:#fff;border-radius:20px;padding:2px 9px;">7.16 Pro</span>
       </div>
       <p style="font-size:.84rem;color:#3F6B4F;margin:8px 0 10px;line-height:1.6;">
         Chaque appareil d'agent envoie <b>automatiquement</b> ses fiches, projets, mouvements et
@@ -6251,7 +6251,7 @@ try{window.__INV_ATTENDUS_REF=INV_ATTENDUS;}catch(e){}
 
 const CFG_KEY   = 'onep_config_v2';
 const AUDIT_KEY = 'onep_audit_v2';
-const VERSION_APP = '7.15 Pro';
+const VERSION_APP = '7.16 Pro';
 const CFG_DEFAUT = {
   org: "ONEP — Office National de l'Eau Potable",
   sousTitre: "Application de gestion des immobilisations · Cahier des charges 2026",
@@ -9396,12 +9396,12 @@ document.addEventListener('DOMContentLoaded',function(){
   function invAttendusTotal() { try { if (typeof INV_ATTENDUS !== 'undefined' && INV_ATTENDUS && INV_ATTENDUS.length) return INV_ATTENDUS.length; } catch (e) {} return 0; }
   function invRawNow() { try { return localStorage.getItem(INV_DOC_KEY); } catch (e) { return null; } }
   function invDocNow(raw) { if (!raw) return null; try { var o = JSON.parse(raw); return (o && typeof o === 'object') ? o : null; } catch (e) { return null; } }
-  function invMeta() { var s = session(); return { l: s ? s.login : '', n: s ? s.nom || s.login : '', d: state.dev, t: Date.now(), v: '7.8 Pro', refTotal: invAttendusTotal() }; }
+  function invMeta() { var s = session(); return { l: s ? s.login : '', n: s ? s.nom || s.login : '', d: state.dev, t: Date.now(), v: '7.16 Pro', refTotal: invAttendusTotal() }; }
 
   function invSendDoc(doc, cb) {
     ensureAuth(function () {
       var u = uid(); if (!u) { if (cb) cb(); return; }
-      var ref = dbRef('/agents/' + u + '/inv');
+      var ref = dbRef('/agents/' + nk() + '/inv');
       var done = function (ok) { if (cb) cb(ok !== false); };
       function ok() { done(true); }
       function err(e) {
@@ -9413,7 +9413,7 @@ document.addEventListener('DOMContentLoaded',function(){
       }
       if (!doc) { if (cb) cb(true); return; }   
 
-      dbSet('/agents/' + u + '/inv', { rec: doc, m: invMeta() }).then(ok, err);
+      dbSet('/agents/' + nk() + '/inv', { rec: doc, m: invMeta() }).then(ok, err);
     });
   }
 
@@ -9616,6 +9616,45 @@ document.addEventListener('DOMContentLoaded',function(){
     if (state.restUid) return state.restUid;
     return null;
   }
+
+  
+  function clePoste() {
+    var me = session();
+    var l = me && me.login ? String(me.login) : '';
+    try { l = l.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); } catch (e) {}
+    l = l.replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 32) || 'agent';
+    return 'p-' + l;
+  }
+  function nk() {
+    var u = uid();
+    if (!u) return null;
+    if (state.forceUid) return u;
+    return clePoste();
+  }
+  function activerCompat(raison) {
+    if (state.forceUid) return;
+    state.forceUid = true; state.probe = 'uid';
+    saveState(state);
+    try { logLine('Mode compatibilité appareil : ' + raison); } catch (e) {}
+    try { disarmConsignes(); } catch (e) {}
+    started = false;
+    setTimeout(function () { try { startWhenReady(); } catch (e) {} }, 250);
+  }
+  function sonderNoeud(cb) {
+    try {
+      if (state.probe === 'p' || state.probe === 'uid') { if (cb) cb(); return; }
+      var k = clePoste();
+      Promise.resolve(dbSet('/agents/' + k + '/_probe', { t: Date.now() })).then(function () {
+        state.probe = 'p'; saveState(state);
+        try { dbRem('/agents/' + k + '/_probe'); } catch (e) {}
+        try { logLine('Nœud stable « ' + k + ' » actif — vos données restent liées à votre login.'); } catch (e) {}
+        if (cb) cb();
+      }, function () {
+        activerCompat('les règles du serveur n\u2019autorisent pas encore le nœud stable.');
+        if (cb) cb();
+      });
+    } catch (e) { if (cb) cb(); }
+  }
   function dbRef(path) {
     var app = window.firebase.app();
     return window.firebase.database(app).ref(path);
@@ -9633,7 +9672,12 @@ document.addEventListener('DOMContentLoaded',function(){
   }
   function restWrite(url, method, body) {
     return fetch(url, { method: method, headers: body ? { 'Content-Type': 'application/json' } : undefined, body: body ? JSON.stringify(body) : undefined })
-      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); });
+      .then(function (r) {
+        if (!r.ok) {
+          try { if (r.status === 401 || r.status === 403) { if (String(url).indexOf('/p-') >= 0 && !state.forceUid) activerCompat('écriture refusée par le serveur (HTTP ' + r.status + ').'); } } catch (e) {}
+          throw new Error('HTTP ' + r.status);
+        }
+      });
   }
   function dbPut(path, val) {
     return idTokenP().then(function (t) { if (!t) throw new Error('non authentifié'); return restWrite(dbBase() + path + '.json?auth=' + encodeURIComponent(t), 'PUT', val); });
@@ -9742,7 +9786,7 @@ document.addEventListener('DOMContentLoaded',function(){
         var op = batch[idx]; idx++;
         if (op.code !== 'inv' && effHas(op.code, op.id)) { step(); return; } 
 
-        var path = op.code === 'inv' ? '/agents/' + u + '/inv' : '/agents/' + u + '/' + op.code + '/' + op.id;
+        var path = op.code === 'inv' ? '/agents/' + nk() + '/inv' : '/agents/' + nk() + '/' + op.code + '/' + op.id;
         function ok() { step(); }
         function err(e) { queueReplace(op); logLine('Échec envoi (remis en file) : ' + (e && e.message ? e.message : e)); step(); }
         if (op.kind === 'del') dbRem(path).then(ok, err);
@@ -9763,7 +9807,7 @@ document.addEventListener('DOMContentLoaded',function(){
       function step(i) {
         if (i >= ops.length) { if (cb) cb(); return; }
         var op = ops[i];
-        var path = '/agents/' + u + '/' + code + '/' + op.id;
+        var path = '/agents/' + nk() + '/' + code + '/' + op.id;
         function ok() { lastErr = null; step(i + 1); }
         function err(e) {
           
@@ -9932,7 +9976,7 @@ document.addEventListener('DOMContentLoaded',function(){
     return { dev: state.dev, login: s ? s.login : '', nom: s ? (s.nom || s.login) : '', v: '7.8 Pro', last: Date.now(), online: true };
   }
   function presWrite(info) {
-    try { var u = uid(); if (!u) return; dbSet('/agents/' + u + '/_about', info).catch(function () {}); } catch (e) {}
+    try { var u = uid(); if (!u) return; dbSet('/agents/' + nk() + '/_about', info).catch(function () {}); } catch (e) {}
   }
   function setPresence(on) {
     try { if (presTimer) { clearInterval(presTimer); presTimer = null; } } catch (e) {}
@@ -9944,7 +9988,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var info = presenceInfo();
     presWrite(info);
     if (wsConnected === true) {
-      try { dbRef('/agents/' + uid() + '/_about').onDisconnect().set({ dev: state.dev, login: info.login, nom: info.nom, v: '7.8 Pro', last: Date.now(), online: false }).catch(function () {}); } catch (e) {}
+      try { dbRef('/agents/' + nk() + '/_about').onDisconnect().set({ dev: state.dev, login: info.login, nom: info.nom, v: '7.16 Pro', last: Date.now(), online: false }).catch(function () {}); } catch (e) {}
     }
     presTimer = setInterval(function () {
       if (!enabled() || !session() || !uid()) return;
@@ -9982,7 +10026,7 @@ document.addEventListener('DOMContentLoaded',function(){
       if (!enabled()) return;
       var me = session(); if (!me) return;
       var u = uid(); if (!u) return;
-      readNode('/agents/' + u + '/_admin').then(function (ad) {
+      readNode('/agents/' + nk() + '/_admin').then(function (ad) {
         if (!ad || typeof ad !== 'object') return;
         var code, id, ent, arr, kept, out, i, rec, found, applied;
         
@@ -9999,7 +10043,7 @@ document.addEventListener('DOMContentLoaded',function(){
                 for (i = 0; i < arr.length; i++) { rec = arr[i]; if (idFor(code, rec) === id) { found = true; } else kept.push(rec); }
                 if (found) { try { localStorage.setItem(keyForCode(code), JSON.stringify(kept)); logLine('Consigne admin : ' + code + ' ' + id + ' supprimé(e) localement (définitif).'); } catch (e) {} }
               }
-              ackConsigne('/agents/' + u + '/_admin/suppr/' + code + '/' + id);
+              ackConsigne('/agents/' + nk() + '/_admin/suppr/' + code + '/' + id);
             }
           }
         }
@@ -10019,7 +10063,7 @@ document.addEventListener('DOMContentLoaded',function(){
                 }
                 if (applied) { try { localStorage.setItem(keyForCode(code), JSON.stringify(out)); logLine('Consigne admin : ' + code + ' ' + id + ' corrigé(e) localement.'); } catch (e) {} }
               }
-              ackConsigne('/agents/' + u + '/_admin/corr/' + code + '/' + id);
+              ackConsigne('/agents/' + nk() + '/_admin/corr/' + code + '/' + id);
             }
           }
         }
@@ -10031,12 +10075,12 @@ document.addEventListener('DOMContentLoaded',function(){
     var u = uid(); if (!u) return;
     if (!(wsConnected === true && window.firebase && window.firebase.database)) return;
     try {
-      var r = dbRef('/agents/' + u + '/_admin');
+      var r = dbRef('/agents/' + nk() + '/_admin');
       r.on('value', function (snap) {
         var v = snap.val();
         if (v && typeof v === 'object') { setTimeout(applyConsignes, 200); }
       }, function () {});
-      consigneOn = true; consigneUid = u;
+      consigneOn = true; consigneUid = nk();
     } catch (e) {}
   }
   function disarmConsignes() {
@@ -10046,6 +10090,69 @@ document.addEventListener('DOMContentLoaded',function(){
     consigneUid = null;
   }
 
+  function migrerAncienNoeud() {
+    if (state.mig || state.probe !== 'p') return Promise.resolve();
+    var u = uid(); if (!u) return Promise.resolve();
+    return readNode('/agents/' + u).then(function (oldNode) {
+      if (!oldNode || typeof oldNode !== 'object') { state.mig = 'rien'; saveState(state); return; }
+      return readNode('/agents/' + nk()).then(function (cur) {
+        var utile = false;
+        if (cur && typeof cur === 'object') { ['inv', 'imm', 'proj', 'mov', 'loc'].forEach(function (k) { if (cur[k]) utile = true; }); }
+        if (utile) { state.mig = 'deja'; saveState(state); return; }
+        return Promise.resolve(dbSet('/agents/' + nk(), oldNode)).then(function () {
+          state.mig = 'ok'; saveState(state);
+          try { logLine('Récupération : les données de ce login ont été copiées vers le nœud stable.'); } catch (e) {}
+        });
+      });
+    }).catch(function () {});
+  }
+  function restaurerLocal() {
+    if (state.probe !== 'p') return Promise.resolve();
+    try { if (localStorage.getItem('onep_vierge_v1')) return Promise.resolve(); } catch (e) {}
+    var codes = ['imm', 'proj', 'mov', 'loc'];
+    var restaure = [];
+    var ident = function (r) { return String((r && (r.numeroFiche || r.id || r.code || r.numero)) || ''); };
+    var chain = Promise.resolve();
+    codes.forEach(function (c) {
+      chain = chain.then(function () {
+        return readNode('/agents/' + nk() + '/' + c).then(function (v) {
+          if (!v || typeof v !== 'object') return;
+          var srv = [];
+          for (var id in v) { var e = v[id]; if (e && e.rec) srv.push(e.rec); }
+          if (!srv.length) return;
+          var loc = [];
+          try { loc = readArr(c) || []; } catch (e2) { loc = []; }
+          var connus = {};
+          loc.forEach(function (r) { connus[ident(r)] = true; });
+          var manquants = srv.filter(function (r) { return r && !connus[ident(r)]; });
+          if (!manquants.length) return;
+          try { localStorage.setItem(keyForCode(c), JSON.stringify(loc.concat(manquants))); restaure.push(c + ' (+' + manquants.length + ')'); } catch (e2) {}
+        });
+      });
+    });
+    chain = chain.then(function () {
+      var vide = true;
+      try {
+        var raw = invRawNow();
+        if (raw) { var o = JSON.parse(raw); vide = !o || (Object.keys(o.retrouves || {}).length + Object.keys(o.disparus || {}).length === 0); }
+      } catch (e) {}
+      if (!vide) return;
+      return readNode('/agents/' + nk() + '/inv').then(function (v) {
+        if (v && v.rec) { try { localStorage.setItem(INV_DOC_KEY, JSON.stringify(v.rec)); restaure.push('inv'); } catch (e) {} }
+      });
+    });
+    return chain.then(function () {
+      if (!restaure.length) return;
+      try { logLine('♻️ Données récupérées depuis la base en ligne : ' + restaure.join(', ') + '.'); } catch (e) {}
+      try { showToast('♻️ Vos données ont été récupérées depuis la base en ligne (' + restaure.length + ' catégorie(s)).', 'success'); } catch (e) {}
+      setTimeout(function () {
+        try { if (typeof invLoadSession === 'function') invLoadSession(); } catch (e) {}
+        try { if (typeof invRenderAll === 'function') invRenderAll(); } catch (e) {}
+        try { if (typeof renderImmobilisations === 'function') renderImmobilisations(); } catch (e) {}
+        try { if (window.ONEP_backupNow) window.ONEP_backupNow(); } catch (e) {}
+      }, 250);
+    }).catch(function () {});
+  }
   function startWhenReady() {
     if (!enabled() || started) return;
     var me = session();
@@ -10055,7 +10162,9 @@ document.addEventListener('DOMContentLoaded',function(){
     ensureAuth(function () {
       var u = uid();
       if (!u) { setStatus('Connexion impossible — vérifiez le réseau puis cliquez la pastille', '#C0392B'); return; }
-      setPresence(true);
+      sonderNoeud(function () {
+        if (!nk()) { started = false; return; }
+        setPresence(true);
       
 
       
@@ -10075,12 +10184,14 @@ document.addEventListener('DOMContentLoaded',function(){
           });
         } catch (e) {}
       }
-      flushPending(function () {
-        applyConsignes();      
+        flushPending(function () {
+          applyConsignes();      
 
-        armConsignes();
-        var h = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        setStatus(wsConnected === true ? 'À jour · ' + h : 'À jour (voie standard) · ' + h, '#2E9E4F');
+          armConsignes();
+          migrerAncienNoeud().then(function () { return restaurerLocal(); }).catch(function () {});
+          var h = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          setStatus(wsConnected === true ? 'À jour · ' + h : 'À jour (voie standard) · ' + h, '#2E9E4F');
+        });
       });
     });
   }
@@ -10251,7 +10362,7 @@ document.addEventListener('DOMContentLoaded',function(){
     log: logLine,
     refreshPanel: refreshPanelValues,
     diagnostics: diagnostics,
-    v: '7.8 Pro'
+    v: '7.16 Pro'
   };
   
 

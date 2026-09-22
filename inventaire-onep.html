@@ -1583,7 +1583,7 @@ input[type=file]{ padding:8px; font-size:.8rem; }
     <div id="onepSyncPanel" style="background:#F2F9F3;border:1px solid #CDEAD5;border-radius:12px;padding:14px 16px;">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <span style="font-size:1.05rem;font-weight:800;color:#14532D;">🌐 Synchronisation en ligne (temps réel)</span>
-        <span style="font-size:.78rem;background:#14532D;color:#fff;border-radius:20px;padding:2px 9px;">7.18 Pro</span>
+        <span style="font-size:.78rem;background:#14532D;color:#fff;border-radius:20px;padding:2px 9px;">7.19 Pro</span>
       </div>
       <p style="font-size:.84rem;color:#3F6B4F;margin:8px 0 10px;line-height:1.6;">
         Chaque appareil d'agent envoie <b>automatiquement</b> ses fiches, projets, mouvements et
@@ -6251,7 +6251,7 @@ try{window.__INV_ATTENDUS_REF=INV_ATTENDUS;}catch(e){}
 
 const CFG_KEY   = 'onep_config_v2';
 const AUDIT_KEY = 'onep_audit_v2';
-const VERSION_APP = '7.18 Pro';
+const VERSION_APP = '7.19 Pro';
 const CFG_DEFAUT = {
   org: "ONEP — Office National de l'Eau Potable",
   sousTitre: "Application de gestion des immobilisations · Cahier des charges 2026",
@@ -9507,7 +9507,7 @@ document.addEventListener('DOMContentLoaded',function(){
   function invAttendusTotal() { try { if (typeof INV_ATTENDUS !== 'undefined' && INV_ATTENDUS && INV_ATTENDUS.length) return INV_ATTENDUS.length; } catch (e) {} return 0; }
   function invRawNow() { try { return localStorage.getItem(INV_DOC_KEY); } catch (e) { return null; } }
   function invDocNow(raw) { if (!raw) return null; try { var o = JSON.parse(raw); return (o && typeof o === 'object') ? o : null; } catch (e) { return null; } }
-  function invMeta() { var s = session(); return { l: s ? s.login : '', n: s ? s.nom || s.login : '', d: state.dev, t: Date.now(), v: '7.18 Pro', refTotal: invAttendusTotal() }; }
+  function invMeta() { var s = session(); return { l: s ? s.login : '', n: s ? s.nom || s.login : '', d: state.dev, t: Date.now(), v: '7.19 Pro', refTotal: invAttendusTotal() }; }
 
   function invSendDoc(doc, cb) {
     ensureAuth(function () {
@@ -10099,7 +10099,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var info = presenceInfo();
     presWrite(info);
     if (wsConnected === true) {
-      try { dbRef('/agents/' + nk() + '/_about').onDisconnect().set({ dev: state.dev, login: info.login, nom: info.nom, v: '7.18 Pro', last: Date.now(), online: false }).catch(function () {}); } catch (e) {}
+      try { dbRef('/agents/' + nk() + '/_about').onDisconnect().set({ dev: state.dev, login: info.login, nom: info.nom, v: '7.19 Pro', last: Date.now(), online: false }).catch(function () {}); } catch (e) {}
     }
     presTimer = setInterval(function () {
       if (!enabled() || !session() || !uid()) return;
@@ -10473,7 +10473,7 @@ document.addEventListener('DOMContentLoaded',function(){
     log: logLine,
     refreshPanel: refreshPanelValues,
     diagnostics: diagnostics,
-    v: '7.18 Pro'
+    v: '7.19 Pro'
   };
   
 
@@ -10523,74 +10523,74 @@ document.addEventListener('DOMContentLoaded',function(){
 var ONEP_ORGANIGRAMME = {
   version: '2023-10-04',
   directions: [
-    { n: 'Direction générale', s: ['Bureau du Directeur',
-      "Bureau de l'Assistante"
+    { n: 'Direction générale', s: [      "Bureau du Directeur — Direction Générale",
+      "Bureau de l'Assistante — Direction Générale"
     ] },
-    { n: 'Direction Générale adjointe', s: ['Bureau du Directeur',
-      "Bureau de l'Assistante"
+    { n: 'Direction Générale adjointe', s: [      "Bureau du Directeur — Direction Générale Adjointe",
+      "Bureau de l'Assistante — Direction Générale Adjointe"
     ] },
-    { n: "Présidence du conseil d'administration", s: ['Bureau du Directeur',
-      "Bureau de l'Assistante"
+    { n: "Présidence du conseil d'administration", s: [      "Bureau du Directeur — Présidence du Conseil d'Administration",
+      "Bureau de l'Assistante — Présidence du Conseil d'Administration"
     ] },
     { n: "Direction de l'audit et de la Qualité", s: [
-      'Bureau du Directeur',
-      "Bureau de l'Assistante",
+      "Bureau du Directeur — Audit et Qualité",
+      "Bureau de l'Assistante — Audit et Qualité",
       'Service Audit Interne',
       'Service Management de la Qualité'
     ] },
     { n: 'Direction des Affaires Juridiques et du Contentieux', s: [
-      'Bureau du Directeur',
-      "Bureau de l'Assistante",
+      "Bureau du Directeur — Affaires Juridiques et Contentieux",
+      "Bureau de l'Assistante — Affaires Juridiques et Contentieux",
       'Service Acquisition foncière et réglementation',
       'Service Contrats et Contentieux'
     ] },
     { n: 'Direction Financière et Comptable', s: [
-      'Bureau du Directeur',
-      "Bureau de l'Assistante",
+      "Bureau du Directeur — Finances et Comptabilité",
+      "Bureau de l'Assistante — Finances et Comptabilité",
       'Service Financier',
       'Service Comptabilité',
       'Service Engagement et Mobilisation des financements'
     ] },
     { n: 'Direction des Ressources Humaines', s: [
-      'Bureau du Directeur',
-      "Bureau de l'Assistante",
+      "Bureau du Directeur — Ressources Humaines",
+      "Bureau de l'Assistante — Ressources Humaines",
       'Service Administration et Paie',
       'Service Développement des Carrières et des Compétences',
       'Service Social et Sécurité au travail'
     ] },
     { n: 'Direction de la logistique des Approvisionnements et des Marchés', s: [
-      'Bureau du Directeur',
-      "Bureau de l'Assistante",
+      "Bureau du Directeur — Logistique, Approvisionnements et Marchés",
+      "Bureau de l'Assistante — Logistique, Approvisionnements et Marchés",
       'Service Logistique et Achats',
       'Service Marchés',
       'Service Intendance'
     ] },
     { n: 'Direction des Etudes, de la Planification et du développement', s: [
-      'Bureau du Directeur',
-      "Bureau de l'Assistante",
+      "Bureau du Directeur — Etudes, Planification et Développement",
+      "Bureau de l'Assistante — Etudes, Planification et Développement",
       'Service Etudes',
       'Service Planification',
       'Service Responsabilité Sociale et Environnementale'
     ] },
     { n: 'Direction de la Mobilisation et de la Protection des Ressources en Eau', s: [
-      'Bureau du Directeur',
-      "Bureau de l'Assistante",
+      "Bureau du Directeur — Mobilisation et Protection des Ressources en Eau",
+      "Bureau de l'Assistante — Mobilisation et Protection des Ressources en Eau",
       'Service Prospection et Mobilisation des Ressources en Eau',
       'Service Gestion et Evaluation des Ressources en Eau',
       'Service Protection des Ressources en Eau',
       'Service Mobilisation Sociale des Projets'
     ] },
     { n: 'Direction des projets', s: [
-      'Bureau du Directeur',
-      "Bureau de l'Assistante",
+      "Bureau du Directeur — Projets",
+      "Bureau de l'Assistante — Projets",
       'Service Travaux en milieu Rural',
       'Service Travaux neufs',
       'Service Travaux de réhabilitation',
       'Service Travaux structurants'
     ] },
     { n: "Direction du contrôle de l'Exploitation et du Patrimoine", s: [
-      'Bureau du Directeur',
-      "Bureau de l'Assistante",
+      "Bureau du Directeur — Contrôle de l'Exploitation et du Patrimoine",
+      "Bureau de l'Assistante — Contrôle de l'Exploitation et du Patrimoine",
       'Service Suivi et Gestion du Patrimoine',
       'Service Contrôle Technique',
       "Service Economie de l'Eau",
@@ -10598,15 +10598,15 @@ var ONEP_ORGANIGRAMME = {
       "Service Contrôle de l'affermage"
     ] },
     { n: "Laboratoire d'analyse et du contrôle de la qualité de l'eau", s: [
-      'Bureau du Directeur',
-      "Bureau de l'Assistante",
+      "Bureau du Directeur — Laboratoire",
+      "Bureau de l'Assistante — Laboratoire",
       'Service Commercial et Approvisionnement',
       'Service Analyses Physico-chimiques',
       'Service Microbiologique'
     ] },
     { n: "Département du budget, du contrôle de Gestion et du système d'information", s: [
-      'Bureau du Directeur',
-      "Bureau de l'Assistante",
+      "Bureau du Directeur — Budget, Contrôle de Gestion et SI",
+      "Bureau de l'Assistante — Budget, Contrôle de Gestion et SI",
       'Service Informatique',
       'Service Courrier et Archives',
       'Service Communication et Relations publiques',

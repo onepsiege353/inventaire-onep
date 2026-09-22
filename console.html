@@ -748,7 +748,19 @@ function collecterInv(){
    AGRÉGATION — tableaux simples (imm, proj, mov, loc)
    ============================================================ */
 function collecter(code){
-  var lignes = [], vus = {}, agents = Object.keys(dataAgents).length, agentsDet = [];
+  var lignes = [], groupes = {}, agents = Object.keys(dataAgents).length, agentsDet = [];
+  // Empreinte de contenu : sert à distinguer une COPIE du même bien (plusieurs
+  // appareils / ancien nœud + nœud stable) de deux biens DIFFÉRENTS portant le
+  // même numéro de fiche. Les copies identiques sont fusionnées (une seule
+  // ligne) ; les biens différents sont TOUS affichés (jamais masqués), la ligne
+  // portant un badge « n° partagé ».
+  function empreinte(rec){
+    try {
+      return [rec.nomImmobilisation, rec.nomDetenteur, rec.etat, rec.valeurActuelle, rec.valeurEntree,
+              rec.directionAffectation, rec.service, rec.codeImmobilisation, rec.numeroIdentification,
+              rec.dateInventaire, rec.nature, rec.numeroSerie].map(function (x){ return String(x == null ? '' : x); }).join('¦').toLowerCase();
+    } catch (e){ try { return JSON.stringify(rec); } catch (e2){ return String(Math.random()); } }
+  }
   for (var uid in dataAgents){
     var a = dataAgents[uid];
     var nom = (a && a._about && a._about.nom) || (a && a._about && a._about.login) || uid;
@@ -762,24 +774,44 @@ function collecter(code){
       if (code === 'imm') ident = rec.numeroFiche;
       else if (code === 'proj') ident = rec.code;
       else if (code === 'loc') ident = rec.codeLocalisation;
-      if (ident){
-        if (!(ident in vus)){
-          vus[ident] = true;
-          lignes.push({ uid: uid, id: id, rec: rec, m: m, doublons: 1 });
+      if (ident !== null && ident !== undefined && String(ident).trim() !== ''){
+        ident = String(ident);
+        if (!(ident in groupes)){
+          var L = { uid: uid, id: id, rec: rec, m: m, doublons: 1, conflits: 0 };
+          lignes.push(L);
+          groupes[ident] = [L];
         } else {
-          for (var i = 0; i < lignes.length; i++){
-            if (lignes[i].rec.numeroFiche === ident || lignes[i].rec.code === ident || lignes[i].rec.codeLocalisation === ident){
-              if ((m.t || 0) > (lignes[i].m.t || 0)) lignes[i] = { uid: uid, id: id, rec: rec, m: m, doublons: lignes[i].doublons + 1 };
-              else lignes[i].doublons++;
-              break;
+          var groupe = groupes[ident];
+          var copie = groupe.some(function (L2){ return empreinte(L2.rec) === empreinte(rec); });
+          if (copie){
+            infosDupTotal.fusionnes++;
+            var ref = groupe[0];   // on garde toujours la version la plus récente dans la 1re ligne du groupe
+            if ((m.t || 0) > (ref.m.t || 0)){ ref.uid = uid; ref.id = id; ref.rec = rec; ref.m = m; }
+            ref.doublons++;
+          } else {
+            infosDupTotal.partages++;
+            groupe[0].conflits = 1;
+            var cop = { uid: uid, id: id, rec: rec, m: m, doublons: 1, conflits: 1 };
+            var idxD = lignes.indexOf(groupe[groupe.length - 1]);
+            lignes.splice(idxD + 1, 0, cop);
+            groupe.push(cop);
+            if ((m.t || 0) > (groupe[0].m.t || 0)){
+              // la version la plus récente prend la tête de groupe (échange de contenu)
+              var head = groupe[0], tail = groupe[groupe.length - 1];
+              var tmp = { uid: head.uid, id: head.id, rec: head.rec, m: head.m };
+              head.uid = tail.uid; head.id = tail.id; head.rec = tail.rec; head.m = tail.m;
+              tail.uid = tmp.uid; tail.id = tmp.id; tail.rec = tmp.rec; tail.m = tmp.m;
             }
           }
         }
-      } else lignes.push({ uid: uid, id: id, rec: rec, m: m, doublons: 0 });
+      } else lignes.push({ uid: uid, id: id, rec: rec, m: m, doublons: 0, conflits: 0 });
     }
   }
-  return { lignes: lignes, agents: agentsDet };
+  var out = { lignes: lignes, agents: agentsDet, fusionnes: infosDupTotal.fusionnes, partages: infosDupTotal.partages };
+  infosDupTotal = { fusionnes: 0, partages: 0 };
+  return out;
 }
+var infosDupTotal = { fusionnes: 0, partages: 0 };
 
 function totalGlobal(){
   var t = { imm: 0, proj: 0, mov: 0, loc: 0 };
@@ -820,8 +852,12 @@ function rendreStats(){
     h += '<div class="stat"><b>' + dv3.length + '</b><span>Postes (cumulés)</span></div>';
   } else {
     var t = totalGlobal();
-    var labels = { imm: 'Fiches', proj: 'Projets', mov: 'Mouvements', loc: 'Localisations' };
-    for (var c in labels){ h += '<div class="stat"><b>' + (t[c] || 0) + '</b><span>' + labels[c] + '</span></div>'; }
+    var aggIm = (codeActif === 'imm') ? null : collecter('imm');
+    var uniques = (codeActif === 'imm') ? collecter(codeActif).lignes.length : (aggIm ? aggIm.lignes.length : 0);
+    var copies = t.imm || 0;
+    var lblFiches = 'Fiches uniques en ligne' + (copies > uniques ? ' (' + copies + ' copies)' : '');
+    var labels = { imm: lblFiches, proj: 'Projets', mov: 'Mouvements', loc: 'Localisations' };
+    for (var c in labels){ h += '<div class="stat"><b>' + (c === 'imm' ? uniques : (t[c] || 0)) + '</b><span>' + labels[c] + '</span></div>'; }
     var dv3 = liveDevices(), on3 = 0; dv3.forEach(function(x){ if (x.online) on3++; });
     h += '<div class="stat"><b>' + on3 + '</b><span>Postes en ligne</span></div>';
     h += '<div class="stat"><b>' + dv3.length + '</b><span>Postes (cumulés)</span></div>';
@@ -943,7 +979,8 @@ function rendu(){
       else if (c.k === 'codeBase' && v) disp = '<span class="badge b-vert" title="Ce bien est rattaché à la base officielle par son code">✅ ' + ech(v) + '</span>';
       else if (c.k === 'sansCode') disp = (L.rec && L.rec.sansCode) ? '<span class="badge b-rouge" title="Nouvelle acquisition sans code — à coder et ajouter à la base">🔖 à coder</span>' : '<span class="fade">—</span>';
       else disp = ech(v);
-      html2 += '<td>' + disp + (L.doublons > 1 ? ' <span class="petit" title="Plusieurs versions">×' + L.doublons + '</span>' : '') + '</td>';
+      if (L.conflits) disp += ' <span class="badge b-orange" title="Ce numéro de fiche est aussi porté par un AUTRE bien — les deux sont affichés">⚠️ n° partagé</span>';
+      html2 += '<td>' + disp + (L.doublons > 1 && !L.conflits ? ' <span class="petit" title="Copies identiques fusionnées">×' + L.doublons + '</span>' : '') + '</td>';
     });
     html2 += '<td><button class="btn btn-r" style="padding:4px 9px;font-size:.72rem;" onclick="editer(\'' + L.uid + '\',\'' + codeActif + '\',\'' + String(L.id).replace(/'/g,"\\'") + '\')">✏️</button> ' +
       '<button class="btn btn-d" style="padding:4px 9px;font-size:.72rem;" onclick="supprimer(\'' + L.uid + '\',\'' + codeActif + '\',\'' + String(L.id).replace(/'/g,"\\'") + '\')">🗑️</button></td></tr>';
@@ -951,7 +988,10 @@ function rendu(){
   $('tbody').innerHTML = html2 || '<tr><td colspan="' + (col.length + 3) + '" class="gris" style="text-align:center;padding:22px;">Aucun enregistrement ne correspond.</td></tr>';
   var agents2 = agg.agents.filter(function(v,i,a){ return a.indexOf(v) === i; });
   var nSans = agg.lignes.filter(function(L){ return L.rec && L.rec.sansCode; }).length;
-  $('countRow').innerHTML = rows2.length + ' ligne(s) affichée(s) sur ' + agg.lignes.length + ' en ligne' +
+  var noteDup = '';
+  if (agg.fusionnes > 0) noteDup += ' · ' + agg.fusionnes + ' copie(s) inter-appareils fusionnée(s)';
+  if (agg.partages > 0) noteDup += ' · <span style="color:#8a6d00;font-weight:700;">⚠️ ' + agg.partages + ' n° de fiche partagé(s) par des biens différents (tous affichés)</span>';
+  $('countRow').innerHTML = rows2.length + ' ligne(s) affichée(s) sur ' + agg.lignes.length + ' en ligne' + noteDup +
     (codeActif === 'imm' && nSans ? ' · <span style="color:#B3261E;font-weight:700;">🔖 biens sans code à coder : ' + nSans + '</span>' : '') +
     ' · postes contributeurs : ' + (agents2.length ? agents2.map(ech).join(', ') : '—');
 }

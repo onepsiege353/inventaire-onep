@@ -1583,7 +1583,7 @@ input[type=file]{ padding:8px; font-size:.8rem; }
     <div id="onepSyncPanel" style="background:#F2F9F3;border:1px solid #CDEAD5;border-radius:12px;padding:14px 16px;">
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <span style="font-size:1.05rem;font-weight:800;color:#14532D;">🌐 Synchronisation en ligne (temps réel)</span>
-        <span style="font-size:.78rem;background:#14532D;color:#fff;border-radius:20px;padding:2px 9px;">7.19 Pro</span>
+        <span style="font-size:.78rem;background:#14532D;color:#fff;border-radius:20px;padding:2px 9px;">7.20 Pro</span>
       </div>
       <p style="font-size:.84rem;color:#3F6B4F;margin:8px 0 10px;line-height:1.6;">
         Chaque appareil d'agent envoie <b>automatiquement</b> ses fiches, projets, mouvements et
@@ -6251,7 +6251,7 @@ try{window.__INV_ATTENDUS_REF=INV_ATTENDUS;}catch(e){}
 
 const CFG_KEY   = 'onep_config_v2';
 const AUDIT_KEY = 'onep_audit_v2';
-const VERSION_APP = '7.19 Pro';
+const VERSION_APP = '7.20 Pro';
 const CFG_DEFAUT = {
   org: "ONEP — Office National de l'Eau Potable",
   sousTitre: "Application de gestion des immobilisations · Cahier des charges 2026",
@@ -9507,7 +9507,7 @@ document.addEventListener('DOMContentLoaded',function(){
   function invAttendusTotal() { try { if (typeof INV_ATTENDUS !== 'undefined' && INV_ATTENDUS && INV_ATTENDUS.length) return INV_ATTENDUS.length; } catch (e) {} return 0; }
   function invRawNow() { try { return localStorage.getItem(INV_DOC_KEY); } catch (e) { return null; } }
   function invDocNow(raw) { if (!raw) return null; try { var o = JSON.parse(raw); return (o && typeof o === 'object') ? o : null; } catch (e) { return null; } }
-  function invMeta() { var s = session(); return { l: s ? s.login : '', n: s ? s.nom || s.login : '', d: state.dev, t: Date.now(), v: '7.19 Pro', refTotal: invAttendusTotal() }; }
+  function invMeta() { var s = session(); return { l: s ? s.login : '', n: s ? s.nom || s.login : '', d: state.dev, t: Date.now(), v: '7.20 Pro', refTotal: invAttendusTotal() }; }
 
   function invSendDoc(doc, cb) {
     ensureAuth(function () {
@@ -9753,10 +9753,16 @@ document.addEventListener('DOMContentLoaded',function(){
   }
   function sonderNoeud(cb) {
     try {
-      if (state.probe === 'p' || state.probe === 'uid') { if (cb) cb(); return; }
+      
+
+      
+
+      
+
+      if (state.probe === 'p') { if (cb) cb(); return; }
       var k = clePoste();
       Promise.resolve(dbSet('/agents/' + k + '/_probe', { t: Date.now() })).then(function () {
-        state.probe = 'p'; saveState(state);
+        state.probe = 'p'; state.forceUid = false; saveState(state);
         try { dbRem('/agents/' + k + '/_probe'); } catch (e) {}
         try { logLine('Nœud stable « ' + k + ' » actif — vos données restent liées à votre login.'); } catch (e) {}
         if (cb) cb();
@@ -10099,7 +10105,7 @@ document.addEventListener('DOMContentLoaded',function(){
     var info = presenceInfo();
     presWrite(info);
     if (wsConnected === true) {
-      try { dbRef('/agents/' + nk() + '/_about').onDisconnect().set({ dev: state.dev, login: info.login, nom: info.nom, v: '7.19 Pro', last: Date.now(), online: false }).catch(function () {}); } catch (e) {}
+      try { dbRef('/agents/' + nk() + '/_about').onDisconnect().set({ dev: state.dev, login: info.login, nom: info.nom, v: '7.20 Pro', last: Date.now(), online: false }).catch(function () {}); } catch (e) {}
     }
     presTimer = setInterval(function () {
       if (!enabled() || !session() || !uid()) return;
@@ -10202,20 +10208,62 @@ document.addEventListener('DOMContentLoaded',function(){
   }
 
   function migrerAncienNoeud() {
-    if (state.mig || state.probe !== 'p') return Promise.resolve();
+    if (state.mig === 'ok' || state.probe !== 'p') return Promise.resolve();
     var u = uid(); if (!u) return Promise.resolve();
+    var dest = nk();
     return readNode('/agents/' + u).then(function (oldNode) {
-      if (!oldNode || typeof oldNode !== 'object') { state.mig = 'rien'; saveState(state); return; }
-      return readNode('/agents/' + nk()).then(function (cur) {
-        var utile = false;
-        if (cur && typeof cur === 'object') { ['inv', 'imm', 'proj', 'mov', 'loc'].forEach(function (k) { if (cur[k]) utile = true; }); }
-        if (utile) { state.mig = 'deja'; saveState(state); return; }
-        return Promise.resolve(dbSet('/agents/' + nk(), oldNode)).then(function () {
-          state.mig = 'ok'; saveState(state);
-          try { logLine('Récupération : les données de ce login ont été copiées vers le nœud stable.'); } catch (e) {}
+      if (!oldNode || typeof oldNode !== 'object') { state.mig = 'ok'; saveState(state); return; }
+      var writes = [];
+      
+
+      
+
+      
+
+      ['imm', 'proj', 'mov', 'loc'].forEach(function (code) {
+        var src = oldNode[code];
+        if (!src || typeof src !== 'object') return;
+        Object.keys(src).forEach(function (id) {
+          var ent = src[id];
+          if (!ent || !ent.rec) return;
+          var path = '/agents/' + dest + '/' + code + '/' + id;
+          writes.push(readNode(path).then(function (ex) {
+            if (ex && ex.rec) return;   
+
+            return Promise.resolve(dbSet(path, ent)).catch(function () {});
+          }));
         });
       });
-    }).catch(function () {});
+      
+
+      if (oldNode.inv && oldNode.inv.rec && typeof oldNode.inv.rec === 'object') {
+        writes.push(readNode('/agents/' + dest + '/inv').then(function (cur) {
+          var srcDoc = oldNode.inv.rec;
+          var curDoc = (cur && cur.rec) ? cur.rec : {};
+          var rS = srcDoc.retrouves || {}, rC = curDoc.retrouves || {};
+          var dS = srcDoc.disparus || {}, dC = curDoc.disparus || {};
+          var manqR = Object.keys(rS).filter(function (k){ return !(k in rC); });
+          var manqD = Object.keys(dS).filter(function (k){ return !(k in dC); });
+          if (!manqR.length && !manqD.length) return;
+          manqR.forEach(function (k){ rC[k] = rS[k]; });
+          manqD.forEach(function (k){ dC[k] = dS[k]; });
+          var doc = {};
+          for (var k2 in curDoc) doc[k2] = curDoc[k2];
+          doc.retrouves = rC; doc.disparus = dC;
+          if (!doc.agent && srcDoc.agent) doc.agent = srcDoc.agent;
+          if (!doc.localisation && srcDoc.localisation) doc.localisation = srcDoc.localisation;
+          var af = Array.isArray(curDoc.agentsFusionnes) ? curDoc.agentsFusionnes.slice() : [];
+          if (srcDoc.agent && af.indexOf(srcDoc.agent) === -1) af.push(srcDoc.agent);
+          doc.agentsFusionnes = af;
+          return Promise.resolve(dbSet('/agents/' + dest + '/inv', { rec: doc, m: invMeta() })).catch(function () {});
+        }));
+      }
+      if (!writes.length) { state.mig = 'ok'; saveState(state); return; }
+      return Promise.all(writes).then(function () {
+        state.mig = 'ok'; saveState(state);
+        try { logLine('Récupération : les données de cet appareil ont été fusionnées dans le nœud stable (sans rien remplacer).'); } catch (e) {}
+      });
+    }).catch(function () { state.mig = null; });
   }
   function restaurerLocal() {
     if (state.probe !== 'p') return Promise.resolve();
@@ -10473,7 +10521,7 @@ document.addEventListener('DOMContentLoaded',function(){
     log: logLine,
     refreshPanel: refreshPanelValues,
     diagnostics: diagnostics,
-    v: '7.19 Pro'
+    v: '7.20 Pro'
   };
   
 
